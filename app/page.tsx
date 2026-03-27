@@ -292,18 +292,29 @@ export default function Page() {
 
     dispatch({ type: "EXTRACTION_STATUS", message: "Uploading PDF…" });
 
+    // Client-side progress messages while Claude processes (60-90s typical)
+    const msgs = [
+      { delay: 3000, text: "Reading through the script… 📖" },
+      { delay: 10000, text: "Identifying course structure…" },
+      { delay: 25000, text: "Extracting lesson content… (this can take a minute)" },
+      { delay: 45000, text: "Processing interactive elements…" },
+      { delay: 70000, text: "Almost there — assembling the full course…" },
+      { delay: 100000, text: "Still working — large modules take a bit longer…" },
+    ];
+    const timers = msgs.map(({ delay, text }) =>
+      setTimeout(() => dispatch({ type: "EXTRACTION_STATUS", message: text }), delay)
+    );
+
     const fd = new FormData();
     fd.append("pdf", s.pdfFile);
 
     fetch("/api/extract", { method: "POST", headers: { "x-anthropic-key": s.anthropicKey }, body: fd })
       .then(async (res) => {
         if (!res.ok) {
-          // Non-streaming error (e.g., 400)
           const err = await res.json().catch(() => ({ error: "Extraction failed" })) as { error?: string };
           throw new Error(err.error ?? "Extraction failed");
         }
 
-        // Parse SSE stream
         const reader = res.body?.getReader();
         if (!reader) throw new Error("No response stream");
         const dec = new TextDecoder();
@@ -326,13 +337,15 @@ export default function Page() {
                 course?: CourseStructure;
               };
               if (data.type === "progress" && data.message) {
+                timers.forEach(clearTimeout);
                 dispatch({ type: "EXTRACTION_STATUS", message: data.message });
               } else if (data.type === "complete" && data.course) {
+                timers.forEach(clearTimeout);
                 dispatch({ type: "EXTRACTION_COMPLETE", course: data.course });
               } else if (data.type === "error") {
+                timers.forEach(clearTimeout);
                 dispatch({ type: "EXTRACTION_ERROR", error: data.error ?? "Extraction failed" });
               }
-              // "ping" events are keepalives — ignore
             } catch (e) {
               console.warn("SSE parse error:", e);
             }
@@ -340,9 +353,11 @@ export default function Page() {
         }
       })
       .catch((err: Error) => {
+        timers.forEach(clearTimeout);
         dispatch({ type: "EXTRACTION_ERROR", error: err.message });
       });
 
+    return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.extractionTrigger]);
 
