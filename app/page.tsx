@@ -1,41 +1,9 @@
 "use client";
 
-import { useReducer, useEffect, useRef, Component, ReactNode } from "react";
+import { useReducer, useEffect, useRef } from "react";
 import { Settings } from "lucide-react";
-
-// ─── Error Boundary ───────────────────────────────────────────────────────────
-
-class ErrorBoundary extends Component<
-  { children: ReactNode },
-  { error: Error | null }
-> {
-  state = { error: null };
-
-  static getDerivedStateFromError(error: Error) {
-    return { error };
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-          <p className="font-semibold text-red-600 text-lg">Something went wrong.</p>
-          <p className="mt-1 text-sm text-gray-500">
-            {(this.state.error as Error).message}
-          </p>
-          <button
-            onClick={() => this.setState({ error: null })}
-            className="mt-4 text-sm underline text-gray-600 hover:text-black"
-          >
-            Try again
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 import type { CourseStructure } from "@/lib/schema";
+import { ErrorBoundary } from "@/components/error-boundary";
 import type { ContentType, ImportLog, ImportProgressEvent, ZipImage } from "@/lib/types";
 import { BobMessage } from "@/components/bob-message";
 import { UserBubble } from "@/components/user-bubble";
@@ -524,6 +492,7 @@ export default function Page() {
         {seen("image-matching") && s.courseStructure && (
           <>
             <BobMessage message="Let me match these to your placeholders…" />
+            <BobMessage message="Note: Images will be listed as placeholders in your Circle lessons. You'll need to insert the actual images through Circle's editor after import — it's a platform limitation we're working around!" />
             {s.imageMatchingConfirmed ? (
               <UserBubble>All images matched ✓</UserBubble>
             ) : (
@@ -570,6 +539,9 @@ export default function Page() {
                 status={s.importStatus}
                 log={s.importLog}
                 error={s.importError}
+                partial={s.importPartial}
+                sectionCount={s.courseStructure.sections.length}
+                lessonCount={totalLessons}
                 onTrigger={() =>
                   requireImportKeys(() => dispatch({ type: "TRIGGER_IMPORT" }))
                 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { CourseStructure } from "@/lib/schema";
 import type { ZipImage } from "@/lib/types";
 

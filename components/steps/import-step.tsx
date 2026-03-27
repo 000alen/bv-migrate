@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { ImportProgressEvent, ImportLog } from "@/lib/types";
 
 interface ImportStepProps {
@@ -8,8 +9,52 @@ interface ImportStepProps {
   status: string;
   log: ImportLog | null;
   error: string | null;
+  partial: ImportLog | null;
+  sectionCount: number;
+  lessonCount: number;
   onTrigger: () => void;
   onRetry: () => void;
+}
+
+function ConfirmDialog({
+  sectionCount,
+  lessonCount,
+  onConfirm,
+  onCancel,
+}: {
+  sectionCount: number;
+  lessonCount: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-6 space-y-4 m-4">
+        <h3 className="font-semibold text-base">Ready to import?</h3>
+        <p className="text-sm text-gray-600">
+          This will create a new course in Circle with{" "}
+          <strong>{sectionCount} section{sectionCount !== 1 ? "s" : ""}</strong> and{" "}
+          <strong>{lessonCount} lesson{lessonCount !== 1 ? "s" : ""}</strong>. All content will be
+          in draft mode. This cannot be easily undone.
+        </p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            style={{ backgroundColor: "#CE99F2" }}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ImportStep({
@@ -18,31 +63,84 @@ export function ImportStep({
   status,
   log,
   error,
+  partial,
+  sectionCount,
+  lessonCount,
   onTrigger,
   onRetry,
 }: ImportStepProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
   if (!triggered) {
     return (
-      <div className="animate-fade-in rounded-xl border border-gray-200 bg-white p-6 shadow-sm text-center">
-        <p className="text-sm text-gray-600 mb-4">
-          Everything is ready. Click below to start importing to Circle.
-        </p>
-        <button
-          onClick={onTrigger}
-          className="h-11 px-8 rounded-xl text-sm font-semibold transition-colors"
-          style={{ backgroundColor: "#CE99F2" }}
-        >
-          🏗️ Start Import
-        </button>
-      </div>
+      <>
+        <div className="animate-fade-in rounded-xl border border-gray-200 bg-white p-6 shadow-sm text-center">
+          <p className="text-sm text-gray-600 mb-4">
+            Everything is ready. Click below to start importing to Circle.
+          </p>
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="h-11 px-8 rounded-xl text-sm font-semibold transition-colors"
+            style={{ backgroundColor: "#CE99F2" }}
+          >
+            🏗️ Start Import
+          </button>
+        </div>
+        {showConfirm && (
+          <ConfirmDialog
+            sectionCount={sectionCount}
+            lessonCount={lessonCount}
+            onConfirm={() => {
+              setShowConfirm(false);
+              onTrigger();
+            }}
+            onCancel={() => setShowConfirm(false)}
+          />
+        )}
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="animate-fade-in rounded-xl border border-red-200 bg-red-50 p-5">
-        <p className="text-sm font-medium text-red-700 mb-1">Import failed</p>
-        <p className="text-xs text-red-600 mb-3">{error}</p>
+      <div className="animate-fade-in rounded-xl border border-red-200 bg-red-50 p-5 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-red-700 mb-1">Import failed</p>
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+        {partial && partial.courseId !== -1 && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+            <p className="text-xs font-medium text-amber-800 mb-1">
+              ⚠️ Partial import — these resources were created and may need manual cleanup:
+            </p>
+            <p className="text-xs text-amber-700">
+              Course ID: <strong>{partial.courseId}</strong> &ldquo;{partial.courseName}&rdquo;
+            </p>
+            {partial.sections.length > 0 && (
+              <div className="mt-1 space-y-0.5 max-h-28 overflow-y-auto">
+                {partial.sections.map((sec) => (
+                  <p key={sec.id} className="text-xs text-amber-700 pl-2">
+                    • {sec.name} (section #{sec.id}, {sec.lessons.length} lesson{sec.lessons.length !== 1 ? "s" : ""})
+                  </p>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(partial, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `partial-import-${partial.courseId}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="mt-2 text-xs font-medium px-2 py-1 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"
+            >
+              ↓ Download partial log
+            </button>
+          </div>
+        )}
         <button
           onClick={onRetry}
           className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors"
