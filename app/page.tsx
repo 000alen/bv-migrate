@@ -319,6 +319,7 @@ export default function Page() {
         if (!reader) throw new Error("No response stream");
         const dec = new TextDecoder();
         let buf = "";
+        let gotResult = false;
 
         for (;;) {
           const { done, value } = await reader.read();
@@ -337,13 +338,13 @@ export default function Page() {
                 course?: CourseStructure;
               };
               if (data.type === "progress" && data.message) {
-                // Don't clear timers on progress — let client-side messages continue
-                // since there's a long gap between "Starting extraction..." and "Validating..."
                 dispatch({ type: "EXTRACTION_STATUS", message: data.message });
               } else if (data.type === "complete" && data.course) {
+                gotResult = true;
                 timers.forEach(clearTimeout);
                 dispatch({ type: "EXTRACTION_COMPLETE", course: data.course });
               } else if (data.type === "error") {
+                gotResult = true;
                 timers.forEach(clearTimeout);
                 dispatch({ type: "EXTRACTION_ERROR", error: data.error ?? "Extraction failed" });
               }
@@ -351,6 +352,11 @@ export default function Page() {
               console.warn("SSE parse error:", e);
             }
           }
+        }
+        // Stream closed without a complete/error event
+        if (!gotResult) {
+          timers.forEach(clearTimeout);
+          dispatch({ type: "EXTRACTION_ERROR", error: "Connection closed before extraction completed. The model may have timed out — try again or use a smaller PDF." });
         }
       })
       .catch((err: Error) => {

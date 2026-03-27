@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
           result = await generateObject({
             model: anthropic(model),
             schema: CourseStructureSchema,
-            maxTokens: 65536,
+            maxTokens: 32768,
             messages: [
               {
                 role: "user",
