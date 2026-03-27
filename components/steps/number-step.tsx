@@ -13,7 +13,7 @@ export function NumberStep({ max, onSelect }: NumberStepProps) {
           <button
             key={n}
             onClick={() => onSelect(n)}
-            className="w-12 h-12 rounded-xl border-2 border-gray-200 text-sm font-semibold hover:border-[#CE99F2] hover:bg-[#CE99F2]/10 transition-all"
+            className="w-12 h-12 rounded-xl border-2 border-gray-200 text-sm font-semibold hover:border-brand-purple hover:bg-brand-purple/10 transition-all"
           >
             {n}
           </button>

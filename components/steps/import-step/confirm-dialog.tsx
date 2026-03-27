@@ -30,8 +30,7 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={{ backgroundColor: "#CE99F2" }}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-brand-purple"
           >
             Continue
           </button>

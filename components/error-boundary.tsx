@@ -36,8 +36,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-sm text-gray-500">Try refreshing the page.</p>
             <button
               onClick={() => window.location.reload()}
-              className="mt-2 px-6 py-2 rounded-xl text-sm font-semibold transition-colors"
-              style={{ backgroundColor: "#CE99F2" }}
+              className="mt-2 px-6 py-2 rounded-xl text-sm font-semibold transition-colors bg-brand-purple"
             >
               Reset
             </button>

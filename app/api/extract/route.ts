@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
           console.error("JSON parse failed:", parseErr);
           send({
             type: "error",
-            error: `Extraction produced invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
+            message: `Extraction produced invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
           });
           return;
         }
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
           console.error("Schema validation failed:", parsed.error.flatten());
           send({
             type: "error",
-            error: "Extraction produced invalid structure",
+            message: "Extraction produced invalid structure",
             details: parsed.error.flatten(),
           });
           return;
@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
           console.error("Semantic validation failed:", validationErrors);
           send({
             type: "error",
-            error: "Extracted content failed validation",
+            message: "Extracted content failed validation",
             details: validationErrors,
           });
           return;

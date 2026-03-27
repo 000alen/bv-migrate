@@ -140,7 +140,7 @@ function QuizBlockForm({
           id="correct-idx"
           value={correctIndex}
           onChange={(e) => setCorrectIndex(Number(e.target.value))}
-          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#CE99F2] bg-white"
+          className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple bg-white"
         >
           {options.map((opt, i) => (
             <option key={i} value={i}>
