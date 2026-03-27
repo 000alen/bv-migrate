@@ -285,20 +285,12 @@ export default function Page() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [s.visited.length, s.extractionStatus, s.importStatus, s.importLog]);
 
-  // Extraction side-effect
+  // Extraction side-effect — uses SSE to survive Vercel timeouts
   useEffect(() => {
     if (s.extractionTrigger === 0) return;
     if (!s.pdfFile || !s.anthropicKey) return;
 
-    const msgs = [
-      "Reading your PDF…",
-      "Identifying course structure…",
-      "Extracting lesson content…",
-      "Processing interactive elements…",
-    ];
-    const timers = [800, 3500, 7000, 12000].map((delay, i) =>
-      setTimeout(() => dispatch({ type: "EXTRACTION_STATUS", message: msgs[i] }), delay)
-    );
+    dispatch({ type: "EXTRACTION_STATUS", message: "Uploading PDF…" });
 
     const fd = new FormData();
     fd.append("pdf", s.pdfFile);
@@ -306,21 +298,51 @@ export default function Page() {
     fetch("/api/extract", { method: "POST", headers: { "x-anthropic-key": s.anthropicKey }, body: fd })
       .then(async (res) => {
         if (!res.ok) {
+          // Non-streaming error (e.g., 400)
           const err = await res.json().catch(() => ({ error: "Extraction failed" })) as { error?: string };
           throw new Error(err.error ?? "Extraction failed");
         }
-        return res.json() as Promise<CourseStructure>;
-      })
-      .then((data) => {
-        timers.forEach(clearTimeout);
-        dispatch({ type: "EXTRACTION_COMPLETE", course: data });
+
+        // Parse SSE stream
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response stream");
+        const dec = new TextDecoder();
+        let buf = "";
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6)) as {
+                type: string;
+                message?: string;
+                error?: string;
+                details?: unknown;
+                course?: CourseStructure;
+              };
+              if (data.type === "progress" && data.message) {
+                dispatch({ type: "EXTRACTION_STATUS", message: data.message });
+              } else if (data.type === "complete" && data.course) {
+                dispatch({ type: "EXTRACTION_COMPLETE", course: data.course });
+              } else if (data.type === "error") {
+                dispatch({ type: "EXTRACTION_ERROR", error: data.error ?? "Extraction failed" });
+              }
+              // "ping" events are keepalives — ignore
+            } catch (e) {
+              console.warn("SSE parse error:", e);
+            }
+          }
+        }
       })
       .catch((err: Error) => {
-        timers.forEach(clearTimeout);
         dispatch({ type: "EXTRACTION_ERROR", error: err.message });
       });
 
-    return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.extractionTrigger]);
 
