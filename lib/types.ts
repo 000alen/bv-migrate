@@ -39,6 +39,9 @@ export interface ImportHistory {
   contentNumber: number;
 }
 
+/** Alias for ImportHistory — used in consolidation UI */
+export type ImportHistoryEntry = ImportHistory;
+
 export interface PartialImportCreated {
   courseId: number | null;
   sections: Array<{
