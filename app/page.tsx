@@ -337,7 +337,8 @@ export default function Page() {
                 course?: CourseStructure;
               };
               if (data.type === "progress" && data.message) {
-                timers.forEach(clearTimeout);
+                // Don't clear timers on progress — let client-side messages continue
+                // since there's a long gap between "Starting extraction..." and "Validating..."
                 dispatch({ type: "EXTRACTION_STATUS", message: data.message });
               } else if (data.type === "complete" && data.course) {
                 timers.forEach(clearTimeout);
