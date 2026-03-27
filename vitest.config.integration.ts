@@ -11,8 +11,8 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/integration/**/*.test.ts"],
-    testTimeout: 120_000,
-    hookTimeout: 60_000,
+    testTimeout: 180_000,
+    hookTimeout: 180_000,
     pool: "forks",
     poolOptions: {
       forks: { singleFork: true }, // sequential — avoid Circle rate limits
