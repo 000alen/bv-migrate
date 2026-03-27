@@ -14,6 +14,7 @@ interface GeniallyLinkerProps {
   circleToken: string;
   spaceGroupId: string;
   geniallyUrls: Record<string, string>;
+  imageAssignments?: Record<number, string>;
   onUrlsChange: (urls: Record<string, string>) => void;
   onImportStart: () => void;
   onProgress: (event: ProgressEvent) => void;
@@ -63,6 +64,7 @@ export function GeniallyLinker({
   circleToken,
   spaceGroupId,
   geniallyUrls,
+  imageAssignments = {},
   onUrlsChange,
   onImportStart,
   onProgress,
@@ -103,7 +105,7 @@ export function GeniallyLinker({
           circleToken,
           spaceGroupId: parseInt(spaceGroupId),
           geniallyUrls,
-          imageAssignments: {},
+          imageAssignments,
         }),
       });
 
