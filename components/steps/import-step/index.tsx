@@ -42,8 +42,7 @@ export function ImportStep({
           </p>
           <button
             onClick={() => setShowConfirm(true)}
-            className="h-11 px-8 rounded-xl text-sm font-semibold transition-colors"
-            style={{ backgroundColor: "#CE99F2" }}
+            className="h-11 px-8 rounded-xl text-sm font-semibold transition-colors bg-brand-purple"
           >
             🏗️ Start Import
           </button>

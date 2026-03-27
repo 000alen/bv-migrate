@@ -2,13 +2,7 @@
 
 import type { CourseStructure } from "@/lib/schema";
 import type { ZipImage } from "@/lib/types";
-
-interface ImagePlaceholder {
-  index: number;
-  description: string;
-  section: string;
-  lesson: string;
-}
+import { collectBlocks } from "@/lib/utils";
 
 interface ImageMatchingStepProps {
   course: CourseStructure;
@@ -18,25 +12,6 @@ interface ImageMatchingStepProps {
   onConfirm: () => void;
 }
 
-function collectPlaceholders(course: CourseStructure): ImagePlaceholder[] {
-  const result: ImagePlaceholder[] = [];
-  for (const section of course.sections) {
-    for (const lesson of section.lessons) {
-      for (const block of lesson.blocks) {
-        if (block.type === "image_placeholder") {
-          result.push({
-            index: block.index,
-            description: block.description,
-            section: section.name,
-            lesson: lesson.name,
-          });
-        }
-      }
-    }
-  }
-  return result;
-}
-
 export function ImageMatchingStep({
   course,
   zipImages,
@@ -44,7 +19,12 @@ export function ImageMatchingStep({
   onAssignmentsChange,
   onConfirm,
 }: ImageMatchingStepProps) {
-  const placeholders = collectPlaceholders(course);
+  const placeholders = collectBlocks(course, "image_placeholder").map(({ block, section, lesson }) => ({
+    index: block.index,
+    description: block.description,
+    section,
+    lesson,
+  }));
 
   function assign(index: number, imageName: string) {
     onAssignmentsChange({ ...assignments, [index]: imageName });
@@ -58,7 +38,7 @@ export function ImageMatchingStep({
         <p className="text-sm text-gray-500">No image placeholders found.</p>
         <button
           onClick={onConfirm}
-          className="mt-3 h-9 px-4 rounded-lg text-sm font-medium bg-[#CE99F2] hover:bg-[#b87de0] transition-colors"
+          className="mt-3 h-9 px-4 rounded-lg text-sm font-medium bg-brand-purple hover:bg-[#b87de0] transition-colors"
         >
           Continue
         </button>
@@ -87,7 +67,7 @@ export function ImageMatchingStep({
                 <select
                   value={assignments[p.index] ?? ""}
                   onChange={(e) => assign(p.index, e.target.value)}
-                  className="mt-1.5 w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#CE99F2]"
+                  className="mt-1.5 w-full text-xs rounded-md border border-gray-200 bg-white px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-purple"
                 >
                   <option value="">Select image…</option>
                   {zipImages.map((img) => (
@@ -113,8 +93,7 @@ export function ImageMatchingStep({
       <button
         onClick={onConfirm}
         disabled={!allAssigned}
-        className="w-full h-10 rounded-lg text-sm font-medium transition-colors disabled:opacity-40"
-        style={{ backgroundColor: "#CE99F2" }}
+        className="w-full h-10 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 bg-brand-purple"
       >
         {allAssigned ? "All matched! ✓" : `${Object.keys(assignments).length}/${placeholders.length} matched — assign all to continue`}
       </button>

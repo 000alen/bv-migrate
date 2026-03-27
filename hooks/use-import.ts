@@ -22,6 +22,8 @@ export function useImport(state: AppState, dispatch: Dispatch<Action>): void {
       }
     }
 
+    const controller = new AbortController();
+
     fetch("/api/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -33,6 +35,7 @@ export function useImport(state: AppState, dispatch: Dispatch<Action>): void {
         imageAssignments: state.imageAssignments,
         imageData: Object.keys(imageData).length > 0 ? imageData : undefined,
       }),
+      signal: controller.signal,
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Import request failed");
@@ -72,7 +75,12 @@ export function useImport(state: AppState, dispatch: Dispatch<Action>): void {
           },
         });
       })
-      .catch((err: Error) => dispatch({ type: "IMPORT_ERROR", error: err.message }));
+      .catch((err: Error) => {
+        if (err.name === "AbortError") return;
+        dispatch({ type: "IMPORT_ERROR", error: err.message });
+      });
+
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.importTrigger]);
 }

@@ -8,6 +8,20 @@
   --bv-yellow: #f9fb75;
   --bv-orange: #f99756;
   --bv-cyan: #95e1ed;
+
+  --brand-purple: #CE99F2;
+  --brand-yellow: #F9FB75;
+  --brand-orange: #f99756;
+  --brand-cyan: #95E1ED;
+  --brand-bg: #F5F6F1;
+}
+
+@theme {
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-bg: var(--brand-bg);
 }
 
 body {

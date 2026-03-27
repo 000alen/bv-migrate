@@ -39,9 +39,6 @@ export interface ImportHistory {
   contentNumber: number;
 }
 
-/** Alias for ImportHistory — used in consolidation UI */
-export type ImportHistoryEntry = ImportHistory;
-
 export interface ConsolidateLog {
   courseId: number;
   courseName: string;

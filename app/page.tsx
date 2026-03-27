@@ -57,6 +57,7 @@ export default function Page() {
   const seen = (p: Phase) => s.visited.includes(p);
   const ct = s.contentType ? s.contentType[0].toUpperCase() + s.contentType.slice(1) : "";
   const maxN = s.contentType === "module" ? 9 : 4;
+  const totalLessons = s.courseStructure?.sections.reduce((n, sec) => n + sec.lessons.length, 0) ?? 0;
 
   function requireKeys(then: () => void) {
     if (!s.anthropicKey) {
@@ -232,31 +233,28 @@ export default function Page() {
         )}
 
         {/* Step 9: Import */}
-        {seen("importing") && s.courseStructure && (() => {
-          const totalLessons = s.courseStructure.sections.reduce((n, sec) => n + sec.lessons.length, 0);
-          return (
-            <>
-              <BobMessage
-                message={`Let's build this! 🏗️ I'll create "${s.courseStructure.name}" with ${s.courseStructure.sections.length} section${s.courseStructure.sections.length !== 1 ? "s" : ""} and ${totalLessons} lesson${totalLessons !== 1 ? "s" : ""} — all set to draft.`}
-                subtext="⚠️ Images will stay as placeholders ([IMAGE N: …]) in the lesson HTML — replace them manually in Circle after import."
-              />
-              <ImportStep
-                triggered={s.importTrigger > 0}
-                progress={s.importProgress}
-                status={s.importStatus}
-                log={s.importLog}
-                error={s.importError}
-                partial={s.importPartial}
-                sectionCount={s.courseStructure.sections.length}
-                lessonCount={totalLessons}
-                onTrigger={() =>
-                  requireImportKeys(() => dispatch({ type: "TRIGGER_IMPORT" }))
-                }
-                onRetry={() => dispatch({ type: "RETRY_IMPORT" })}
-              />
-            </>
-          );
-        })()}
+        {seen("importing") && s.courseStructure && (
+          <>
+            <BobMessage
+              message={`Let's build this! 🏗️ I'll create "${s.courseStructure.name}" with ${s.courseStructure.sections.length} section${s.courseStructure.sections.length !== 1 ? "s" : ""} and ${totalLessons} lesson${totalLessons !== 1 ? "s" : ""} — all set to draft.`}
+              subtext="⚠️ Images will stay as placeholders ([IMAGE N: …]) in the lesson HTML — replace them manually in Circle after import."
+            />
+            <ImportStep
+              triggered={s.importTrigger > 0}
+              progress={s.importProgress}
+              status={s.importStatus}
+              log={s.importLog}
+              error={s.importError}
+              partial={s.importPartial}
+              sectionCount={s.courseStructure.sections.length}
+              lessonCount={totalLessons}
+              onTrigger={() =>
+                requireImportKeys(() => dispatch({ type: "TRIGGER_IMPORT" }))
+              }
+              onRetry={() => dispatch({ type: "RETRY_IMPORT" })}
+            />
+          </>
+        )}
 
         {/* Step 10: Complete */}
         {seen("complete") && (
@@ -271,8 +269,7 @@ export default function Page() {
                       dispatch({ type: "OFFER_CONSOLIDATE" });
                       dispatch({ type: "START_CONSOLIDATE" });
                     }}
-                    className="h-9 px-4 rounded-lg text-sm font-semibold transition-colors text-white"
-                    style={{ backgroundColor: "#CE99F2" }}
+                    className="h-9 px-4 rounded-lg text-sm font-semibold transition-colors text-white bg-brand-purple"
                   >
                     Yes, combine modules
                   </button>
@@ -329,18 +326,9 @@ export default function Page() {
         anthropicKey={s.anthropicKey}
         spaceGroupId={s.spaceGroupId}
         onClose={() => dispatch({ type: "CLOSE_SETTINGS" })}
-        onCircleToken={(v) => {
-          dispatch({ type: "SET_CIRCLE_TOKEN", value: v });
-          localStorage.setItem("bv_circle_token", v);
-        }}
-        onAnthropicKey={(v) => {
-          dispatch({ type: "SET_ANTHROPIC_KEY", value: v });
-          localStorage.setItem("bv_anthropic_key", v);
-        }}
-        onSpaceGroupId={(v) => {
-          dispatch({ type: "SET_SPACE_GROUP_ID", value: v });
-          localStorage.setItem("bv_space_group_id", v);
-        }}
+        onCircleToken={(v) => dispatch({ type: "SET_CIRCLE_TOKEN", value: v })}
+        onAnthropicKey={(v) => dispatch({ type: "SET_ANTHROPIC_KEY", value: v })}
+        onSpaceGroupId={(v) => dispatch({ type: "SET_SPACE_GROUP_ID", value: v })}
       />
     </div>
   );

@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     try {
         const anthropicKey = req.headers.get("x-anthropic-key") ?? "";
         if (!anthropicKey) {
-          send({ type: "error", error: "Missing x-anthropic-key header" });
+          send({ type: "error", message: "Missing x-anthropic-key header" });
           return;
         }
 
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
         const pdfFile = formData.get("pdf") as File | null;
 
         if (!pdfFile) {
-          send({ type: "error", error: "Missing pdf file in form data" });
+          send({ type: "error", message: "Missing pdf file in form data" });
           return;
         }
 
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
         send({ type: "complete", course });
     } catch (error) {
       console.error("Extract error:", error);
-      send({ type: "error", error: error instanceof Error ? error.message : String(error) });
+      send({ type: "error", message: error instanceof Error ? error.message : String(error) });
     } finally {
       close();
     }

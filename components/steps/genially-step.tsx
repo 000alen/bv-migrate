@@ -1,6 +1,7 @@
 "use client";
 
 import type { CourseStructure } from "@/lib/schema";
+import { collectBlocks } from "@/lib/utils";
 
 interface GeniallyStepProps {
   course: CourseStructure;
@@ -9,36 +10,20 @@ interface GeniallyStepProps {
   onConfirm: () => void;
 }
 
-interface GeniallyPlaceholder {
-  name: string;
-  description: string;
-  section: string;
-  lesson: string;
-}
-
-function collectGenially(course: CourseStructure): GeniallyPlaceholder[] {
-  const seen = new Set<string>();
-  const result: GeniallyPlaceholder[] = [];
-  for (const section of course.sections) {
-    for (const lesson of section.lessons) {
-      for (const block of lesson.blocks) {
-        if (block.type === "genially_placeholder" && !seen.has(block.name)) {
-          seen.add(block.name);
-          result.push({
-            name: block.name,
-            description: block.description,
-            section: section.name,
-            lesson: lesson.name,
-          });
-        }
-      }
-    }
-  }
-  return result;
-}
-
 export function GeniallyStep({ course, urls, onUrlsChange, onConfirm }: GeniallyStepProps) {
-  const placeholders = collectGenially(course);
+  const seen = new Set<string>();
+  const placeholders = collectBlocks(course, "genially_placeholder")
+    .filter(({ block }) => {
+      if (seen.has(block.name)) return false;
+      seen.add(block.name);
+      return true;
+    })
+    .map(({ block, section, lesson }) => ({
+      name: block.name,
+      description: block.description,
+      section,
+      lesson,
+    }));
 
   function setUrl(name: string, url: string) {
     onUrlsChange({ ...urls, [name]: url });
@@ -50,7 +35,7 @@ export function GeniallyStep({ course, urls, onUrlsChange, onConfirm }: Genially
         <p className="text-sm text-gray-500">No Genially interactives found.</p>
         <button
           onClick={onConfirm}
-          className="mt-3 h-9 px-4 rounded-lg text-sm font-medium bg-[#CE99F2] hover:bg-[#b87de0] transition-colors"
+          className="mt-3 h-9 px-4 rounded-lg text-sm font-medium bg-brand-purple hover:bg-[#b87de0] transition-colors"
         >
           Continue
         </button>
@@ -72,7 +57,7 @@ export function GeniallyStep({ course, urls, onUrlsChange, onConfirm }: Genially
               value={urls[p.name] ?? ""}
               onChange={(e) => setUrl(p.name, e.target.value)}
               placeholder="https://view.genially.com/..."
-              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#CE99F2]"
+              className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-brand-purple"
             />
           </div>
         ))}
@@ -80,8 +65,7 @@ export function GeniallyStep({ course, urls, onUrlsChange, onConfirm }: Genially
 
       <button
         onClick={onConfirm}
-        className="w-full h-10 rounded-lg text-sm font-medium transition-colors"
-        style={{ backgroundColor: "#CE99F2" }}
+        className="w-full h-10 rounded-lg text-sm font-medium transition-colors bg-brand-purple"
       >
         Ready to build! 🏗️
       </button>

@@ -101,11 +101,7 @@ export function SettingsDrawer({
           <div className="p-6 border-t border-gray-100">
             <button
               onClick={handleSave}
-              className="w-full h-10 rounded-lg font-medium text-sm transition-colors"
-              style={{
-                backgroundColor: saved ? "#22c55e" : "#CE99F2",
-                color: "#000",
-              }}
+              className={`w-full h-10 rounded-lg font-medium text-sm transition-colors ${saved ? "bg-green-500" : "bg-brand-purple"}`}
             >
               {saved ? "Saved ✓" : "Save"}
             </button>
@@ -146,7 +142,7 @@ function Field({
         placeholder={placeholder}
         autoFocus={autoFocus}
         aria-describedby={`${id}-hint`}
-        className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#CE99F2] bg-white"
+        className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple bg-white"
       />
       <p id={`${id}-hint`} className="text-xs text-gray-500">{hint}</p>
     </div>

@@ -25,6 +25,8 @@ export function useExtraction(state: AppState, dispatch: Dispatch<Action>): void
       setTimeout(() => dispatch({ type: "EXTRACTION_STATUS", message: text }), delay)
     );
 
+    const controller = new AbortController();
+
     const fd = new FormData();
     fd.append("pdf", state.pdfFile);
 
@@ -32,6 +34,7 @@ export function useExtraction(state: AppState, dispatch: Dispatch<Action>): void
       method: "POST",
       headers: { "x-anthropic-key": state.anthropicKey },
       body: fd,
+      signal: controller.signal,
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -62,11 +65,15 @@ export function useExtraction(state: AppState, dispatch: Dispatch<Action>): void
         }
       })
       .catch((err: Error) => {
+        if (err.name === "AbortError") return;
         timers.forEach(clearTimeout);
         dispatch({ type: "EXTRACTION_ERROR", error: err.message });
       });
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      timers.forEach(clearTimeout);
+      controller.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.extractionTrigger]);
 }

@@ -69,10 +69,6 @@ async function fetchWithRetry(
   throw new Error("fetchWithRetry: exhausted all attempts");
 }
 
-async function handleResponse<T>(res: Response): Promise<T> {
-  return res.json() as Promise<T>;
-}
-
 // ── Circle API types ────────────────────────────────────────────────────────
 
 export interface CircleCourse {
@@ -120,7 +116,7 @@ export async function createCourse(
       }),
     }
   );
-  const data = await handleResponse<{ space: CircleCourse } | CircleCourse>(res);
+  const data = (await res.json()) as { space: CircleCourse } | CircleCourse;
   // Circle wraps the response in { space: ... }
   return "space" in data ? data.space : data;
 }
@@ -138,7 +134,7 @@ export async function createSection(
       body: JSON.stringify({ name, space_id: spaceId }),
     }
   );
-  return handleResponse<CircleSection>(res);
+  return (await res.json()) as CircleSection;
 }
 
 export async function createLesson(
@@ -161,7 +157,7 @@ export async function createLesson(
       }),
     }
   );
-  return handleResponse<CircleLesson>(res);
+  return (await res.json()) as CircleLesson;
 }
 
 export interface CircleLessonDetail {
@@ -187,7 +183,7 @@ export async function getCourseSections(token: string, spaceId: number): Promise
       `${BASE_URL}/course_sections?space_id=${spaceId}&page=${page}&per_page=100`,
       { method: "GET", headers: authHeaders(token, "GET") }
     );
-    const data = await handleResponse<Record<string, unknown>>(res);
+    const data = await res.json() as Record<string, unknown>;
     const records = (Array.isArray(data.records) ? data.records : []) as CircleSection[];
     all.push(...records);
     if (!data.has_next_page) break;
@@ -205,7 +201,7 @@ export async function getCourseLessons(token: string, sectionId: number): Promis
       `${BASE_URL}/course_lessons?section_id=${sectionId}&page=${page}&per_page=100`,
       { method: "GET", headers: authHeaders(token, "GET") }
     );
-    const data = await handleResponse<Record<string, unknown>>(res);
+    const data = await res.json() as Record<string, unknown>;
     const records = (Array.isArray(data.records) ? data.records : []) as CircleLesson[];
     all.push(...records);
     if (!data.has_next_page) break;
@@ -219,7 +215,7 @@ export async function getLessonDetail(token: string, lessonId: number): Promise<
     `${BASE_URL}/course_lessons/${lessonId}`,
     { method: "GET", headers: authHeaders(token, "GET") }
   );
-  const data = await handleResponse<unknown>(res);
+  const data = await res.json() as unknown;
   const obj = data as Record<string, unknown>;
   if (obj.course_lesson) return obj.course_lesson as CircleLessonDetail;
   return data as CircleLessonDetail;
@@ -250,7 +246,7 @@ export async function createDirectUpload(
       }),
     }
   );
-  return handleResponse<DirectUploadResponse>(res);
+  return (await res.json()) as DirectUploadResponse;
 }
 
 export async function uploadFile(
@@ -272,4 +268,3 @@ export async function uploadFile(
     throw new Error(`File upload failed: ${res.status} ${res.statusText}`);
   }
 }
-

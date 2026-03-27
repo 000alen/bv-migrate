@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import type { ImportHistory, ConsolidateLog } from "@/lib/types";
 import { consumeSSE } from "@/lib/sse";
+import { ProgressView } from "@/components/ui/progress-view";
+import { downloadJson } from "@/lib/utils";
 
 interface ConsolidateSource {
   spaceId: number;
@@ -166,15 +168,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
           ))}
         </div>
         <button
-          onClick={() => {
-            const blob = new Blob([JSON.stringify(resultLog, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `consolidate-log-${resultLog.courseId}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
+          onClick={() => downloadJson(resultLog, `consolidate-log-${resultLog.courseId}.json`)}
           className="text-xs font-medium px-3 py-1.5 rounded-lg bg-green-100 hover:bg-green-200 text-green-700 transition-colors"
         >
           ↓ Download log
@@ -184,34 +178,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
   }
 
   if (running) {
-    const latest = progress[progress.length - 1];
-    const pct = latest?.step != null && latest?.total ? Math.round((latest.step / latest.total) * 100) : 0;
-    return (
-      <div className="animate-fade-in rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
-        <div className="flex items-center gap-3">
-          <svg className="h-5 w-5 animate-spin text-[#CE99F2] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          <p className="text-sm text-gray-700 flex-1 truncate">{status || "Connecting…"}</p>
-          {latest?.step != null && latest?.total && (
-            <span className="text-xs text-gray-500 flex-shrink-0">{latest.step}/{latest.total}</span>
-          )}
-        </div>
-        {latest?.total && (
-          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: "#CE99F2" }} />
-          </div>
-        )}
-        {progress.length > 1 && (
-          <div className="max-h-28 overflow-y-auto space-y-0.5">
-            {progress.slice(-8).map((p, i) => (
-              <p key={i} className="text-xs text-gray-500">✓ {p.message}</p>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+    return <ProgressView status={status} progress={progress} />;
   }
 
   return (
@@ -227,7 +194,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
                 <label key={h.spaceId} className="flex items-start gap-2 cursor-pointer group">
                   <input
                     type="checkbox"
-                    className="mt-0.5 accent-[#CE99F2]"
+                    className="mt-0.5 accent-brand-purple"
                     checked={selected.has(h.spaceId)}
                     onChange={() => toggleModule(h.spaceId)}
                   />
@@ -251,7 +218,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
           Additional space IDs (one per line, format: <code className="text-xs bg-gray-100 px-1 rounded">12345:Module 3 — Title</code>):
         </p>
         <textarea
-          className="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-[#CE99F2]"
+          className="w-full border border-gray-200 rounded-lg p-2 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-brand-purple"
           rows={3}
           placeholder={"12345:Module 3 — Strategy\n67890:Module 4 — Finance"}
           value={manualEntries}
@@ -263,7 +230,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
         <p className="text-sm font-medium text-gray-700 mb-1">Combined course name:</p>
         <input
           type="text"
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#CE99F2]"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand-purple"
           value={combinedName}
           onChange={(e) => setCombinedName(e.target.value)}
         />
@@ -271,8 +238,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
 
       <button
         onClick={handleStart}
-        className="h-11 w-full rounded-xl text-sm font-semibold transition-colors"
-        style={{ backgroundColor: "#CE99F2" }}
+        className="h-11 w-full rounded-xl text-sm font-semibold transition-colors bg-brand-purple"
       >
         📚 Combine Modules
       </button>

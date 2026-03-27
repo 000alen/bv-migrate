@@ -85,7 +85,7 @@ export async function consumeSSE(
           case "error":
             gotResult = true;
             handlers.onError?.(
-              String(data.error ?? data.message ?? "Unknown error"),
+              String(data.message ?? "Unknown error"),
               data
             );
             break;
