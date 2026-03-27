@@ -4,7 +4,7 @@ import { useReducer, useEffect, useRef } from "react";
 import { Settings } from "lucide-react";
 import type { CourseStructure } from "@/lib/schema";
 import { ErrorBoundary } from "@/components/error-boundary";
-import type { ContentType, ImportLog, ImportProgressEvent, ZipImage } from "@/lib/types";
+import type { ContentType, ImportLog, ImportProgressEvent, ZipImage, ImportHistory } from "@/lib/types";
 import { BobMessage } from "@/components/bob-message";
 import { UserBubble } from "@/components/user-bubble";
 import { SettingsDrawer } from "@/components/settings-drawer";
@@ -17,6 +17,7 @@ import { ImageMatchingStep } from "@/components/steps/image-matching-step";
 import { GeniallyStep } from "@/components/steps/genially-step";
 import { ImportStep } from "@/components/steps/import-step";
 import { ContentPreview } from "@/components/content-preview";
+import { ConsolidateStep } from "@/components/steps/consolidate-step";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,9 @@ type Phase =
   | "image-matching"
   | "genially-links"
   | "importing"
-  | "complete";
+  | "complete"
+  | "consolidate"
+  | "consolidate-complete";
 
 interface AppState {
   phase: Phase;
@@ -68,6 +71,11 @@ interface AppState {
   importLog: ImportLog | null;
   importError: string | null;
   importPartial: ImportLog | null;
+
+  consolidateOffered: boolean;
+  consolidateDeclined: boolean;
+  consolidateLog: { courseId: number; courseName: string; sections: Array<{ id: number; name: string; lessons: Array<{ id: number; name: string }> }> } | null;
+  consolidateError: string | null;
 }
 
 type Action =
@@ -98,7 +106,12 @@ type Action =
   | { type: "IMPORT_STATUS"; message: string }
   | { type: "IMPORT_COMPLETE"; log: ImportLog }
   | { type: "IMPORT_ERROR"; error: string; partial?: ImportLog | null }
-  | { type: "RETRY_IMPORT" };
+  | { type: "RETRY_IMPORT" }
+  | { type: "OFFER_CONSOLIDATE" }
+  | { type: "DECLINE_CONSOLIDATE" }
+  | { type: "START_CONSOLIDATE" }
+  | { type: "CONSOLIDATE_COMPLETE"; log: { courseId: number; courseName: string; sections: Array<{ id: number; name: string; lessons: Array<{ id: number; name: string }> }> } }
+  | { type: "CONSOLIDATE_ERROR"; error: string };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,6 +164,10 @@ const initial: AppState = {
   importLog: null,
   importError: null,
   importPartial: null,
+  consolidateOffered: false,
+  consolidateDeclined: false,
+  consolidateLog: null,
+  consolidateError: null,
 };
 
 function reducer(s: AppState, a: Action): AppState {
@@ -225,6 +242,16 @@ function reducer(s: AppState, a: Action): AppState {
       return { ...s, importError: a.error, importPartial: a.partial ?? null };
     case "RETRY_IMPORT":
       return { ...s, importError: null, importProgress: [], importStatus: "", importPartial: null, importTrigger: s.importTrigger + 1 };
+    case "OFFER_CONSOLIDATE":
+      return { ...s, consolidateOffered: true };
+    case "DECLINE_CONSOLIDATE":
+      return { ...s, consolidateDeclined: true };
+    case "START_CONSOLIDATE":
+      return { ...s, ...visit(s, "consolidate") };
+    case "CONSOLIDATE_COMPLETE":
+      return { ...s, consolidateLog: a.log, consolidateError: null, ...visit(s, "consolidate-complete") };
+    case "CONSOLIDATE_ERROR":
+      return { ...s, consolidateError: a.error };
     default:
       return s;
   }
@@ -304,6 +331,16 @@ export default function Page() {
     const spaceGroupId = parseInt(s.spaceGroupId, 10);
     if (isNaN(spaceGroupId)) return;
 
+    // Build imageData from imageAssignments + zipImages
+    const imageData: Record<number, { filename: string; dataUrl: string }> = {};
+    for (const [idxStr, imgName] of Object.entries(s.imageAssignments)) {
+      const idx = parseInt(idxStr, 10);
+      const img = s.zipImages.find((z) => z.name === imgName);
+      if (img) {
+        imageData[idx] = { filename: img.name, dataUrl: img.dataUrl };
+      }
+    }
+
     fetch("/api/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -313,6 +350,7 @@ export default function Page() {
         spaceGroupId,
         geniallyUrls: s.geniallyUrls,
         imageAssignments: s.imageAssignments,
+        imageData: Object.keys(imageData).length > 0 ? imageData : undefined,
       }),
     })
       .then(async (res) => {
@@ -334,6 +372,22 @@ export default function Page() {
               if (data.type === "progress") {
                 dispatch({ type: "IMPORT_PROGRESS", event: data as ImportProgressEvent });
               } else if (data.type === "complete" && data.log) {
+                // Save to import history in localStorage
+                try {
+                  const existing = JSON.parse(localStorage.getItem("bv_import_history") ?? "[]") as ImportHistory[];
+                  const newEntry: ImportHistory = {
+                    id: crypto.randomUUID(),
+                    timestamp: new Date().toISOString(),
+                    courseName: data.log.courseName,
+                    spaceId: data.log.courseId,
+                    sectionCount: data.log.sections.length,
+                    lessonCount: data.log.sections.reduce((n, sec) => n + sec.lessons.length, 0),
+                    contentType: s.contentType ?? "module",
+                    contentNumber: s.contentNumber ?? 1,
+                  };
+                  existing.unshift(newEntry);
+                  localStorage.setItem("bv_import_history", JSON.stringify(existing.slice(0, 50)));
+                } catch { /* ignore */ }
                 dispatch({ type: "IMPORT_COMPLETE", log: data.log });
               } else if (data.type === "error") {
                 dispatch({ type: "IMPORT_ERROR", error: data.message ?? "Unknown error", partial: data.partial });
@@ -553,7 +607,62 @@ export default function Page() {
 
         {/* Step 10: Complete */}
         {seen("complete") && (
-          <BobMessage message="All done! 🎉 Your course is live on Circle (as drafts)." />
+          <>
+            <BobMessage message="All done! 🎉 Your course is live on Circle (as drafts)." />
+            {!s.consolidateOffered && !s.consolidateDeclined && !seen("consolidate") && (
+              <div className="animate-fade-in rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-3">
+                <p className="text-sm text-gray-700">Want to combine this with other modules into one Circle course?</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      dispatch({ type: "OFFER_CONSOLIDATE" });
+                      dispatch({ type: "START_CONSOLIDATE" });
+                    }}
+                    className="h-9 px-4 rounded-lg text-sm font-semibold transition-colors text-white"
+                    style={{ backgroundColor: "#CE99F2" }}
+                  >
+                    Yes, combine modules
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "DECLINE_CONSOLIDATE" })}
+                    className="h-9 px-4 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                  >
+                    No thanks
+                  </button>
+                </div>
+              </div>
+            )}
+            {s.consolidateDeclined && !seen("consolidate") && (
+              <UserBubble>No thanks</UserBubble>
+            )}
+          </>
+        )}
+
+        {/* Step 11: Consolidate */}
+        {seen("consolidate") && (
+          <>
+            <BobMessage message="Let's combine your modules into one course! Select which ones to include:" />
+            {s.consolidateError && (
+              <div className="animate-fade-in rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                Error: {s.consolidateError}
+              </div>
+            )}
+            {!seen("consolidate-complete") && (
+              <ConsolidateStep
+                circleToken={s.circleToken}
+                spaceGroupId={s.spaceGroupId}
+                onComplete={(log) => dispatch({ type: "CONSOLIDATE_COMPLETE", log })}
+                onError={(error) => dispatch({ type: "CONSOLIDATE_ERROR", error })}
+              />
+            )}
+          </>
+        )}
+
+        {/* Step 12: Consolidate complete */}
+        {seen("consolidate-complete") && s.consolidateLog && (
+          <BobMessage
+            message={`All done! 🎉 Combined course "${s.consolidateLog.courseName}" created on Circle with ${s.consolidateLog.sections.length} section${s.consolidateLog.sections.length !== 1 ? "s" : ""}.`}
+          />
         )}
 
         <div ref={endRef} />

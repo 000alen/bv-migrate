@@ -20,6 +20,23 @@ export interface ImportLog {
     placeholderName: string;
     embedUrl: string;
   }>;
+  uploadedImages?: Array<{
+    lessonName: string;
+    placeholderIndex: number;
+    description: string;
+    signedId: string;
+  }>;
+}
+
+export interface ImportHistory {
+  id: string;
+  timestamp: string;
+  courseName: string;
+  spaceId: number;
+  sectionCount: number;
+  lessonCount: number;
+  contentType: string;
+  contentNumber: number;
 }
 
 export interface PartialImportCreated {

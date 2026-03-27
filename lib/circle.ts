@@ -158,3 +158,105 @@ export async function createLesson(
   );
   return handleResponse<CircleLesson>(res);
 }
+
+export interface CircleLessonDetail {
+  id: number;
+  name: string;
+  body_html: string;
+}
+
+export interface DirectUploadResponse {
+  signed_id: string;
+  direct_upload: {
+    url: string;
+    headers: Record<string, string>;
+  };
+}
+
+export async function getCourseSections(token: string, spaceId: number): Promise<CircleSection[]> {
+  const res = await fetchWithRetry(
+    `${BASE_URL}/course_sections?space_id=${spaceId}`,
+    { method: "GET", headers: authHeaders(token) }
+  );
+  const data = await handleResponse<unknown>(res);
+  if (Array.isArray(data)) return data as CircleSection[];
+  const obj = data as Record<string, unknown>;
+  if (Array.isArray(obj.course_sections)) return obj.course_sections as CircleSection[];
+  return [];
+}
+
+export async function getCourseLessons(token: string, sectionId: number): Promise<CircleLesson[]> {
+  const res = await fetchWithRetry(
+    `${BASE_URL}/course_lessons?section_id=${sectionId}`,
+    { method: "GET", headers: authHeaders(token) }
+  );
+  const data = await handleResponse<unknown>(res);
+  if (Array.isArray(data)) return data as CircleLesson[];
+  const obj = data as Record<string, unknown>;
+  if (Array.isArray(obj.course_lessons)) return obj.course_lessons as CircleLesson[];
+  return [];
+}
+
+export async function getLessonDetail(token: string, lessonId: number): Promise<CircleLessonDetail> {
+  const res = await fetchWithRetry(
+    `${BASE_URL}/course_lessons/${lessonId}`,
+    { method: "GET", headers: authHeaders(token) }
+  );
+  const data = await handleResponse<unknown>(res);
+  const obj = data as Record<string, unknown>;
+  if (obj.course_lesson) return obj.course_lesson as CircleLessonDetail;
+  return data as CircleLessonDetail;
+}
+
+export async function createDirectUpload(
+  token: string,
+  filename: string,
+  byteSize: number,
+  contentType: string,
+  checksum: string
+): Promise<DirectUploadResponse> {
+  const res = await fetchWithRetry(
+    `${BASE_URL}/direct_uploads`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ filename, byte_size: byteSize, content_type: contentType, checksum }),
+    }
+  );
+  return handleResponse<DirectUploadResponse>(res);
+}
+
+export async function uploadFile(
+  presignedUrl: string,
+  headers: Record<string, string>,
+  fileData: Buffer
+): Promise<void> {
+  // Convert Buffer to ArrayBuffer for fetch compatibility
+  const arrayBuffer = fileData.buffer.slice(
+    fileData.byteOffset,
+    fileData.byteOffset + fileData.byteLength
+  ) as ArrayBuffer;
+  const res = await fetch(presignedUrl, {
+    method: "PUT",
+    headers,
+    body: arrayBuffer,
+  });
+  if (!res.ok) {
+    throw new Error(`File upload failed: ${res.status} ${res.statusText}`);
+  }
+}
+
+export async function uploadToPresignedUrl(
+  url: string,
+  headers: Record<string, string>,
+  data: ArrayBuffer
+): Promise<void> {
+  const res = await fetch(url, { method: "PUT", headers, body: data });
+  if (!res.ok) {
+    throw new Error(`File upload failed: ${res.status} ${res.statusText}`);
+  }
+}
+
+// Aliases for alternate naming conventions
+export const getSpaceSections = getCourseSections;
+export const getSectionLessons = getCourseLessons;
