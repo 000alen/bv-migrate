@@ -1,743 +1,570 @@
 "use client";
 
-import * as React from "react";
-import JSZip from "jszip";
-import { CourseStructure } from "@/lib/schema";
-import { ImportLog } from "@/app/api/import/route";
-import { ProgressEvent } from "@/components/genially-linker";
-import { ApiKeyForm } from "@/components/api-key-form";
+import { useReducer, useEffect, useRef } from "react";
+import { Settings } from "lucide-react";
+import type { CourseStructure } from "@/lib/schema";
+import type { ContentType, ImportLog, ProgressEvent, ZipImage } from "@/lib/types";
+import { BobMessage } from "@/components/bob-message";
+import { UserBubble } from "@/components/user-bubble";
+import { SettingsDrawer } from "@/components/settings-drawer";
+import { ContentTypeStep } from "@/components/steps/content-type-step";
+import { NumberStep } from "@/components/steps/number-step";
+import { PdfUploadStep } from "@/components/steps/pdf-upload-step";
+import { ExtractionStep } from "@/components/steps/extraction-step";
+import { ImageUploadStep } from "@/components/steps/image-upload-step";
+import { ImageMatchingStep } from "@/components/steps/image-matching-step";
+import { GeniallyStep } from "@/components/steps/genially-step";
+import { ImportStep } from "@/components/steps/import-step";
 import { ContentPreview } from "@/components/content-preview";
-import { ImageMatcher } from "@/components/image-matcher";
-import { GeniallyLinker } from "@/components/genially-linker";
-import { ImportProgress } from "@/components/import-progress";
-import { BobAvatar } from "@/components/bob-avatar";
-import {
-  Settings,
-  X,
-  Upload,
-  FileText,
-  AlertCircle,
-  Loader2,
-  FolderOpen,
-} from "lucide-react";
 
-type ContentType = "module" | "milestone" | "micromodule";
-type Phase = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const MAX_NUMBERS: Record<ContentType, number> = {
-  module: 9,
-  milestone: 4,
-  micromodule: 4,
+type Phase =
+  | "greeting"
+  | "content-type"
+  | "number-selection"
+  | "pdf-upload"
+  | "extracting"
+  | "review-extraction"
+  | "image-upload"
+  | "image-matching"
+  | "genially-links"
+  | "importing"
+  | "complete";
+
+interface AppState {
+  phase: Phase;
+  visited: Phase[];
+  settingsOpen: boolean;
+  keyNudge: string | null;
+
+  circleToken: string;
+  anthropicKey: string;
+  spaceGroupId: string;
+
+  contentType: ContentType | null;
+  contentNumber: number | null;
+
+  pdfFile: File | null;
+  pdfFileName: string | null;
+  extractionTrigger: number;
+  extractionStatus: string;
+  extractionError: string | null;
+  courseStructure: CourseStructure | null;
+  reviewConfirmed: boolean;
+
+  zipImages: ZipImage[];
+  imageAssignments: Record<number, string>;
+
+  imageMatchingConfirmed: boolean;
+
+  geniallyUrls: Record<string, string>;
+  geniallyConfirmed: boolean;
+
+  importTrigger: number;
+  importProgress: ProgressEvent[];
+  importStatus: string;
+  importLog: ImportLog | null;
+  importError: string | null;
+}
+
+type Action =
+  | { type: "INIT"; circleToken: string; anthropicKey: string; spaceGroupId: string }
+  | { type: "OPEN_SETTINGS" }
+  | { type: "CLOSE_SETTINGS" }
+  | { type: "SET_CIRCLE_TOKEN"; value: string }
+  | { type: "SET_ANTHROPIC_KEY"; value: string }
+  | { type: "SET_SPACE_GROUP_ID"; value: string }
+  | { type: "SHOW_KEY_NUDGE"; message: string }
+  | { type: "ADVANCE_FROM_GREETING" }
+  | { type: "SELECT_CONTENT_TYPE"; contentType: ContentType }
+  | { type: "SELECT_NUMBER"; number: number }
+  | { type: "SET_PDF_FILE"; file: File; fileName: string }
+  | { type: "EXTRACTION_STATUS"; message: string }
+  | { type: "EXTRACTION_COMPLETE"; course: CourseStructure }
+  | { type: "EXTRACTION_ERROR"; error: string }
+  | { type: "RETRY_EXTRACTION" }
+  | { type: "UPDATE_COURSE"; course: CourseStructure }
+  | { type: "CONFIRM_EXTRACTION" }
+  | { type: "SET_ZIP_IMAGES"; images: ZipImage[] }
+  | { type: "UPDATE_IMAGE_ASSIGNMENTS"; assignments: Record<number, string> }
+  | { type: "CONFIRM_IMAGE_MATCHING" }
+  | { type: "UPDATE_GENIALLY_URLS"; urls: Record<string, string> }
+  | { type: "CONFIRM_GENIALLY" }
+  | { type: "TRIGGER_IMPORT" }
+  | { type: "IMPORT_PROGRESS"; event: ProgressEvent }
+  | { type: "IMPORT_STATUS"; message: string }
+  | { type: "IMPORT_COMPLETE"; log: ImportLog }
+  | { type: "IMPORT_ERROR"; error: string }
+  | { type: "RETRY_IMPORT" };
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function hasImages(course: CourseStructure) {
+  return course.sections.some((s) =>
+    s.lessons.some((l) => l.blocks.some((b) => b.type === "image_placeholder"))
+  );
+}
+
+function hasGenially(course: CourseStructure) {
+  return course.sections.some((s) =>
+    s.lessons.some((l) => l.blocks.some((b) => b.type === "genially_placeholder"))
+  );
+}
+
+function visit(state: AppState, phase: Phase): Pick<AppState, "phase" | "visited"> {
+  return {
+    phase,
+    visited: state.visited.includes(phase) ? state.visited : [...state.visited, phase],
+  };
+}
+
+// ─── Reducer ──────────────────────────────────────────────────────────────────
+
+const initial: AppState = {
+  phase: "greeting",
+  visited: ["greeting"],
+  settingsOpen: false,
+  keyNudge: null,
+  circleToken: "",
+  anthropicKey: "",
+  spaceGroupId: "",
+  contentType: null,
+  contentNumber: null,
+  pdfFile: null,
+  pdfFileName: null,
+  extractionTrigger: 0,
+  extractionStatus: "",
+  extractionError: null,
+  courseStructure: null,
+  reviewConfirmed: false,
+  zipImages: [],
+  imageAssignments: {},
+  imageMatchingConfirmed: false,
+  geniallyUrls: {},
+  geniallyConfirmed: false,
+  importTrigger: 0,
+  importProgress: [],
+  importStatus: "",
+  importLog: null,
+  importError: null,
 };
 
-const TYPE_LABELS: Record<ContentType, string> = {
-  module: "Module",
-  milestone: "Milestone",
-  micromodule: "Micromodule",
-};
-
-interface ImageAssignment {
-  file: File;
-  dataUrl: string;
-}
-
-function collectImagePlaceholderIndices(course: CourseStructure): number[] {
-  const indices: number[] = [];
-  for (const section of course.sections) {
-    for (const lesson of section.lessons) {
-      for (const block of lesson.blocks) {
-        if (block.type === "image_placeholder") {
-          indices.push(block.index);
-        }
-      }
+function reducer(s: AppState, a: Action): AppState {
+  switch (a.type) {
+    case "INIT":
+      return { ...s, circleToken: a.circleToken, anthropicKey: a.anthropicKey, spaceGroupId: a.spaceGroupId };
+    case "OPEN_SETTINGS":
+      return { ...s, settingsOpen: true };
+    case "CLOSE_SETTINGS":
+      return { ...s, settingsOpen: false, keyNudge: null };
+    case "SET_CIRCLE_TOKEN":
+      return { ...s, circleToken: a.value };
+    case "SET_ANTHROPIC_KEY":
+      return { ...s, anthropicKey: a.value };
+    case "SET_SPACE_GROUP_ID":
+      return { ...s, spaceGroupId: a.value };
+    case "SHOW_KEY_NUDGE":
+      return { ...s, keyNudge: a.message };
+    case "ADVANCE_FROM_GREETING":
+      return { ...s, ...visit(s, "content-type") };
+    case "SELECT_CONTENT_TYPE":
+      return { ...s, contentType: a.contentType, keyNudge: null, ...visit(s, "number-selection") };
+    case "SELECT_NUMBER":
+      return { ...s, contentNumber: a.number, ...visit(s, "pdf-upload") };
+    case "SET_PDF_FILE":
+      return {
+        ...s,
+        pdfFile: a.file,
+        pdfFileName: a.fileName,
+        extractionTrigger: s.extractionTrigger + 1,
+        extractionError: null,
+        extractionStatus: "",
+        ...visit(s, "extracting"),
+      };
+    case "EXTRACTION_STATUS":
+      return { ...s, extractionStatus: a.message };
+    case "EXTRACTION_COMPLETE":
+      return { ...s, courseStructure: a.course, extractionError: null, ...visit(s, "review-extraction") };
+    case "EXTRACTION_ERROR":
+      return { ...s, extractionError: a.error };
+    case "RETRY_EXTRACTION":
+      return { ...s, extractionError: null, extractionStatus: "", extractionTrigger: s.extractionTrigger + 1 };
+    case "UPDATE_COURSE":
+      return { ...s, courseStructure: a.course };
+    case "CONFIRM_EXTRACTION": {
+      const c = s.courseStructure!;
+      const next = hasImages(c) ? "image-upload" : hasGenially(c) ? "genially-links" : "importing";
+      return { ...s, reviewConfirmed: true, ...visit(s, next) };
     }
+    case "SET_ZIP_IMAGES":
+      return { ...s, zipImages: a.images, ...visit(s, "image-matching") };
+    case "UPDATE_IMAGE_ASSIGNMENTS":
+      return { ...s, imageAssignments: a.assignments };
+    case "CONFIRM_IMAGE_MATCHING": {
+      const c = s.courseStructure!;
+      const next = hasGenially(c) ? "genially-links" : "importing";
+      return { ...s, imageMatchingConfirmed: true, ...visit(s, next) };
+    }
+    case "UPDATE_GENIALLY_URLS":
+      return { ...s, geniallyUrls: a.urls };
+    case "CONFIRM_GENIALLY":
+      return { ...s, geniallyConfirmed: true, ...visit(s, "importing") };
+    case "TRIGGER_IMPORT":
+      return { ...s, importTrigger: s.importTrigger + 1, importProgress: [], importStatus: "", importError: null };
+    case "IMPORT_PROGRESS":
+      return { ...s, importProgress: [...s.importProgress, a.event], importStatus: a.event.message };
+    case "IMPORT_STATUS":
+      return { ...s, importStatus: a.message };
+    case "IMPORT_COMPLETE":
+      return { ...s, importLog: a.log, importError: null, ...visit(s, "complete") };
+    case "IMPORT_ERROR":
+      return { ...s, importError: a.error };
+    case "RETRY_IMPORT":
+      return { ...s, importError: null, importProgress: [], importStatus: "", importTrigger: s.importTrigger + 1 };
+    default:
+      return s;
   }
-  return [...new Set(indices)].sort((a, b) => a - b);
 }
 
-function hasGeniallyPlaceholders(course: CourseStructure): boolean {
-  for (const section of course.sections) {
-    for (const lesson of section.lessons) {
-      for (const block of lesson.blocks) {
-        if (block.type === "genially_placeholder") return true;
-      }
-    }
-  }
-  return false;
-}
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-// ─── Small chat primitives ───────────────────────────────────────────────────
+export default function Page() {
+  const [s, dispatch] = useReducer(reducer, initial);
+  const endRef = useRef<HTMLDivElement>(null);
 
-function BobMessage({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="shrink-0 mt-1">
-        <BobAvatar size={44} />
-      </div>
-      <div
-        className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm max-w-sm text-sm leading-relaxed"
-        style={{ border: "1px solid rgba(0,0,0,0.08)" }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function UserBubble({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex justify-end">
-      <div
-        className="px-4 py-2 rounded-2xl rounded-tr-sm text-sm font-semibold"
-        style={{ backgroundColor: "#CE99F2" }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export default function HomePage() {
-  const [phase, setPhase] = React.useState<Phase>(0);
-  const [contentType, setContentType] = React.useState<ContentType | null>(null);
-  const [contentNumber, setContentNumber] = React.useState<number | null>(null);
-  const [courseStructure, setCourseStructure] =
-    React.useState<CourseStructure | null>(null);
-  const [imageAssignments, setImageAssignments] = React.useState<
-    Record<number, ImageAssignment>
-  >({});
-  const [geniallyUrls, setGeniallyUrls] = React.useState<
-    Record<string, string>
-  >({});
-  const [importLog, setImportLog] = React.useState<ImportLog | null>(null);
-  const [importProgress, setImportProgress] = React.useState<ProgressEvent[]>(
-    []
-  );
-  const [isImporting, setIsImporting] = React.useState(false);
-  const [importError, setImportError] = React.useState<string | null>(null);
-  const [isExtracting, setIsExtracting] = React.useState(false);
-  const [extractError, setExtractError] = React.useState<string | null>(null);
-  const [pdfFile, setPdfFile] = React.useState<File | null>(null);
-  const [isDraggingPdf, setIsDraggingPdf] = React.useState(false);
-  const [zipFile, setZipFile] = React.useState<File | null>(null);
-  const [isDraggingZip, setIsDraggingZip] = React.useState(false);
-  const [isProcessingZip, setIsProcessingZip] = React.useState(false);
-  const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const [circleToken, setCircleToken] = React.useState("");
-  const [anthropicKey, setAnthropicKey] = React.useState("");
-  const [spaceGroupId, setSpaceGroupId] = React.useState("");
-
-  const pdfInputRef = React.useRef<HTMLInputElement>(null);
-  const zipInputRef = React.useRef<HTMLInputElement>(null);
-  const bottomRef = React.useRef<HTMLDivElement>(null);
-
-  // Load API creds from localStorage on mount
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      setCircleToken(localStorage.getItem("bv_circle_token") ?? "");
-      setAnthropicKey(localStorage.getItem("bv_anthropic_key") ?? "");
-      setSpaceGroupId(localStorage.getItem("bv_space_group_id") ?? "");
-    }
+  // Load settings from localStorage
+  useEffect(() => {
+    dispatch({
+      type: "INIT",
+      circleToken: localStorage.getItem("bv_circle_token") ?? "",
+      anthropicKey: localStorage.getItem("bv_anthropic_key") ?? "",
+      spaceGroupId: localStorage.getItem("bv_space_group_id") ?? "",
+    });
   }, []);
 
-  // Auto-scroll to bottom as conversation grows
-  React.useEffect(() => {
-    setTimeout(
-      () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-      150
+  // Auto-advance from greeting
+  useEffect(() => {
+    if (s.phase !== "greeting") return;
+    const t = setTimeout(() => dispatch({ type: "ADVANCE_FROM_GREETING" }), 600);
+    return () => clearTimeout(t);
+  }, [s.phase]);
+
+  // Auto-scroll
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [s.visited.length, s.extractionStatus, s.importStatus, s.importLog]);
+
+  // Extraction side-effect
+  useEffect(() => {
+    if (s.extractionTrigger === 0) return;
+    if (!s.pdfFile || !s.anthropicKey) return;
+
+    const msgs = [
+      "Reading your PDF…",
+      "Identifying course structure…",
+      "Extracting lesson content…",
+      "Processing interactive elements…",
+    ];
+    const timers = [800, 3500, 7000, 12000].map((delay, i) =>
+      setTimeout(() => dispatch({ type: "EXTRACTION_STATUS", message: msgs[i] }), delay)
     );
-  }, [phase, isExtracting, courseStructure, isImporting]);
 
-  // ── Phase advance handlers ──────────────────────────────────────────────────
+    const fd = new FormData();
+    fd.append("pdf", s.pdfFile);
 
-  function selectContentType(type: ContentType) {
-    setContentType(type);
-    setPhase(1);
-  }
-
-  function selectNumber(n: number) {
-    setContentNumber(n);
-    setPhase(2);
-  }
-
-  function handlePdfFile(f: File) {
-    if (f.type === "application/pdf" || f.name.endsWith(".pdf")) {
-      setPdfFile(f);
-      setExtractError(null);
-    }
-  }
-
-  async function handleExtract() {
-    if (!pdfFile || !anthropicKey) return;
-    setPhase(3);
-    setIsExtracting(true);
-    setExtractError(null);
-    try {
-      const formData = new FormData();
-      formData.append("pdf", pdfFile);
-      const res = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "x-anthropic-key": anthropicKey },
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `HTTP ${res.status}`);
-      }
-      const course: CourseStructure = await res.json();
-      setCourseStructure(course);
-      setPhase(4);
-    } catch (e) {
-      setExtractError(e instanceof Error ? e.message : String(e));
-      setPhase(2);
-    } finally {
-      setIsExtracting(false);
-    }
-  }
-
-  // Called by ContentPreview's own "continue" button
-  function confirmPreview() {
-    if (!courseStructure) return;
-    const hasImages = collectImagePlaceholderIndices(courseStructure).length > 0;
-    setPhase(hasImages ? 5 : 7);
-  }
-
-  async function handleZipFile(f: File) {
-    setZipFile(f);
-    setIsProcessingZip(true);
-    try {
-      const zip = await JSZip.loadAsync(f);
-      const imageEntries: Array<{ name: string; data: Blob }> = [];
-
-      for (const [filename, entry] of Object.entries(zip.files)) {
-        if (entry.dir) continue;
-        if (!/\.(jpg|jpeg|png|gif|webp)$/i.test(filename)) continue;
-        const blob = await entry.async("blob");
-        const baseName = filename.split("/").pop() ?? filename;
-        imageEntries.push({ name: baseName, data: blob });
-      }
-
-      imageEntries.sort((a, b) => a.name.localeCompare(b.name));
-
-      if (courseStructure) {
-        const indices = collectImagePlaceholderIndices(courseStructure);
-        const assignments: Record<number, ImageAssignment> = {};
-
-        for (let i = 0; i < indices.length; i++) {
-          if (!imageEntries[i]) break;
-          const { name, data } = imageEntries[i];
-          const imgFile = new File([data], name, { type: "image/jpeg" });
-          const dataUrl = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target?.result as string);
-            reader.readAsDataURL(data);
-          });
-          assignments[indices[i]] = { file: imgFile, dataUrl };
+    fetch("/api/extract", { method: "POST", headers: { "x-anthropic-key": s.anthropicKey }, body: fd })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Extraction failed" })) as { error?: string };
+          throw new Error(err.error ?? "Extraction failed");
         }
+        return res.json() as Promise<CourseStructure>;
+      })
+      .then((data) => {
+        timers.forEach(clearTimeout);
+        dispatch({ type: "EXTRACTION_COMPLETE", course: data });
+      })
+      .catch((err: Error) => {
+        timers.forEach(clearTimeout);
+        dispatch({ type: "EXTRACTION_ERROR", error: err.message });
+      });
 
-        setImageAssignments(assignments);
-      }
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.extractionTrigger]);
 
-      setPhase(6);
-    } catch {
-      // If ZIP parsing fails, still advance so user sees image matcher
-      setPhase(6);
-    } finally {
-      setIsProcessingZip(false);
+  // Import side-effect
+  useEffect(() => {
+    if (s.importTrigger === 0) return;
+    if (!s.courseStructure || !s.circleToken) return;
+    const spaceGroupId = parseInt(s.spaceGroupId, 10);
+    if (isNaN(spaceGroupId)) return;
+
+    fetch("/api/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        course: s.courseStructure,
+        circleToken: s.circleToken,
+        spaceGroupId,
+        geniallyUrls: s.geniallyUrls,
+        imageAssignments: s.imageAssignments,
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Import request failed");
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response stream");
+        const dec = new TextDecoder();
+        let buf = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6)) as { type: string; message?: string; step?: number; total?: number; log?: ImportLog };
+              if (data.type === "progress") {
+                dispatch({ type: "IMPORT_PROGRESS", event: data as ProgressEvent });
+              } else if (data.type === "complete" && data.log) {
+                dispatch({ type: "IMPORT_COMPLETE", log: data.log });
+              } else if (data.type === "error") {
+                dispatch({ type: "IMPORT_ERROR", error: data.message ?? "Unknown error" });
+              }
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      })
+      .catch((err: Error) => dispatch({ type: "IMPORT_ERROR", error: err.message }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.importTrigger]);
+
+  // ── Derived values ──────────────────────────────────────────────────────────
+  const seen = (p: Phase) => s.visited.includes(p);
+  const ct = s.contentType ? s.contentType[0].toUpperCase() + s.contentType.slice(1) : "";
+  const maxN = s.contentType === "module" ? 9 : 4;
+
+  function requireKeys(then: () => void) {
+    if (!s.anthropicKey) {
+      dispatch({ type: "SHOW_KEY_NUDGE", message: "Hold on — you need to set up your API keys first! Click the ⚙️ in the top right." });
+      dispatch({ type: "OPEN_SETTINGS" });
+      return;
     }
+    then();
   }
 
-  // Called by ImageMatcher's own "continue" button
-  function confirmImages() {
-    setPhase(7);
+  function requireImportKeys(then: () => void) {
+    if (!s.circleToken || !s.spaceGroupId) {
+      dispatch({ type: "SHOW_KEY_NUDGE", message: "Hold on — you need your Circle API token and Space Group ID first! Click the ⚙️ in the top right." });
+      dispatch({ type: "OPEN_SETTINGS" });
+      return;
+    }
+    then();
   }
-
-  // Build data-URL map for the import API
-  const imageDataUrls = React.useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(imageAssignments).map(([k, v]) => [k, v.dataUrl])
-      ),
-    [imageAssignments]
-  );
 
   // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#F5F6F1" }}>
-
-      {/* ── Header ── */}
-      <header
-        className="sticky top-0 z-40 border-b border-white/10"
-        style={{ backgroundColor: "#000" }}
-      >
-        <div className="mx-auto max-w-2xl px-4 flex h-14 items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-lg tracking-tight text-white">
-              Content Constructors
-            </span>
-            <span
-              className="hidden sm:block text-xs px-2 py-0.5 rounded-full text-black font-semibold"
-              style={{ backgroundColor: "#F9FB75" }}
-            >
-              by beVisioneers
-            </span>
-          </div>
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur-sm">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+          <span className="font-bold text-lg tracking-tight">Content Constructors</span>
           <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-            title="API Settings"
+            onClick={() => dispatch({ type: "OPEN_SETTINGS" })}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            aria-label="Settings"
           >
             <Settings className="h-5 w-5" />
           </button>
         </div>
       </header>
 
-      {/* ── Settings slide-over ── */}
-      {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setSettingsOpen(false)}
-          />
-          <div className="relative w-80 bg-white h-full shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-black/10">
-              <h2 className="font-semibold">Settings</h2>
-              <button
-                onClick={() => setSettingsOpen(false)}
-                className="p-1 rounded hover:bg-black/5 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <ApiKeyForm
-                circleToken={circleToken}
-                anthropicKey={anthropicKey}
-                spaceGroupId={spaceGroupId}
-                onCircleTokenChange={(v) => {
-                  setCircleToken(v);
-                  localStorage.setItem("bv_circle_token", v);
-                }}
-                onAnthropicKeyChange={(v) => {
-                  setAnthropicKey(v);
-                  localStorage.setItem("bv_anthropic_key", v);
-                }}
-                onSpaceGroupIdChange={(v) => {
-                  setSpaceGroupId(v);
-                  localStorage.setItem("bv_space_group_id", v);
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Conversation */}
+      <main className="max-w-3xl mx-auto px-4 py-8 space-y-4 pb-24">
+        {/* Greeting — always shown */}
+        <BobMessage
+          message="Hey! I'm Bob the Builder 👷 Welcome to Content Constructors!"
+          subtext="I'll help you migrate your beVisioneers course content to Circle."
+        />
 
-      {/* ── Conversation area ── */}
-      <main className="flex-1 mx-auto w-full max-w-2xl px-4 py-8 space-y-5">
+        {/* API key nudge */}
+        {s.keyNudge && <BobMessage message={s.keyNudge} />}
 
-        {/* ════ PHASE 0: Greeting + content type picker ════ */}
-
-        <BobMessage>Hey! I&apos;m Bob the Builder. 👷</BobMessage>
-
-        <BobMessage>So tell me — what are we migrating today?</BobMessage>
-
-        <div className="flex gap-3 justify-center flex-wrap py-2">
-          {(["module", "milestone", "micromodule"] as ContentType[]).map(
-            (type) => (
-              <button
-                key={type}
-                onClick={() => phase === 0 && selectContentType(type)}
-                disabled={phase > 0 && contentType !== type}
-                className="px-6 py-3 rounded-full font-semibold text-sm border-2 transition-all"
-                style={
-                  contentType === type
-                    ? {
-                        borderColor: "#000",
-                        backgroundColor: "#000",
-                        color: "#fff",
-                        transform: "scale(1.05)",
-                      }
-                    : phase > 0
-                    ? {
-                        borderColor: "rgba(0,0,0,0.1)",
-                        color: "rgba(0,0,0,0.25)",
-                        cursor: "default",
-                      }
-                    : {
-                        borderColor: "rgba(0,0,0,0.2)",
-                        color: "#000",
-                        cursor: "pointer",
-                      }
+        {/* Step 1: Content type */}
+        {seen("content-type") && (
+          <>
+            <BobMessage message="So tell me, what are we migrating today?" />
+            {s.contentType ? (
+              <UserBubble>{ct}</UserBubble>
+            ) : (
+              <ContentTypeStep
+                onSelect={(ct) =>
+                  requireKeys(() => dispatch({ type: "SELECT_CONTENT_TYPE", contentType: ct }))
                 }
-              >
-                {TYPE_LABELS[type]}
-              </button>
-            )
-          )}
-        </div>
-
-        {/* ════ PHASE 1: Number picker ════ */}
-        {phase >= 1 && contentType && (
-          <>
-            <UserBubble>{TYPE_LABELS[contentType]}</UserBubble>
-
-            <BobMessage>
-              Nice! Which {TYPE_LABELS[contentType].toLowerCase()} number?
-            </BobMessage>
-
-            <div className="flex gap-2 justify-center flex-wrap py-2">
-              {Array.from(
-                { length: MAX_NUMBERS[contentType] },
-                (_, i) => i + 1
-              ).map((n) => (
-                <button
-                  key={n}
-                  onClick={() => phase === 1 && selectNumber(n)}
-                  disabled={phase > 1 && contentNumber !== n}
-                  className="w-12 h-12 rounded-xl font-bold text-lg border-2 transition-all"
-                  style={
-                    contentNumber === n
-                      ? {
-                          borderColor: "#000",
-                          backgroundColor: "#000",
-                          color: "#fff",
-                        }
-                      : phase > 1
-                      ? {
-                          borderColor: "rgba(0,0,0,0.1)",
-                          color: "rgba(0,0,0,0.2)",
-                          cursor: "default",
-                        }
-                      : {
-                          borderColor: "rgba(0,0,0,0.2)",
-                          cursor: "pointer",
-                        }
-                  }
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* ════ PHASE 2 + 3: PDF upload & extraction ════ */}
-        {phase >= 2 && (
-          <>
-            <UserBubble>
-              {TYPE_LABELS[contentType!]} {contentNumber}
-            </UserBubble>
-
-            {phase === 2 && (
-              <>
-                <BobMessage>
-                  {pdfFile
-                    ? `Got it — ready to read "${pdfFile.name}"`
-                    : "Great! Now drag your script PDF here:"}
-                </BobMessage>
-
-                {/* PDF dropzone */}
-                <div
-                  className="rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all bg-white"
-                  style={{
-                    borderColor: isDraggingPdf
-                      ? "#CE99F2"
-                      : pdfFile
-                      ? "rgba(0,0,0,0.2)"
-                      : "rgba(0,0,0,0.15)",
-                    backgroundColor: isDraggingPdf ? "#faf5ff" : "#fff",
-                  }}
-                  onClick={() => pdfInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDraggingPdf(true);
-                  }}
-                  onDragLeave={() => setIsDraggingPdf(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDraggingPdf(false);
-                    const f = e.dataTransfer.files[0];
-                    if (f) handlePdfFile(f);
-                  }}
-                >
-                  {pdfFile ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <FileText className="h-8 w-8" style={{ color: "#CE99F2" }} />
-                      <div className="text-left">
-                        <p className="font-semibold">{pdfFile.name}</p>
-                        <p className="text-sm" style={{ color: "rgba(0,0,0,0.5)" }}>
-                          {(pdfFile.size / 1024 / 1024).toFixed(2)} MB — click to change
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Upload className="h-10 w-10 mx-auto" style={{ color: "rgba(0,0,0,0.25)" }} />
-                      <p className="font-medium" style={{ color: "rgba(0,0,0,0.5)" }}>
-                        Drop PDF here or click to browse
-                      </p>
-                    </div>
-                  )}
-                  <input
-                    ref={pdfInputRef}
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handlePdfFile(f);
-                    }}
-                  />
-                </div>
-
-                {extractError && (
-                  <div
-                    className="flex items-start gap-2 rounded-xl p-4 text-sm"
-                    style={{
-                      backgroundColor: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#b91c1c",
-                    }}
-                  >
-                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>{extractError}</span>
-                  </div>
-                )}
-
-                {pdfFile && !anthropicKey && (
-                  <p className="text-sm text-center" style={{ color: "rgba(0,0,0,0.45)" }}>
-                    Add your Anthropic API key in{" "}
-                    <button
-                      onClick={() => setSettingsOpen(true)}
-                      className="underline font-medium"
-                    >
-                      settings ⚙
-                    </button>{" "}
-                    to continue.
-                  </p>
-                )}
-
-                {pdfFile && anthropicKey && (
-                  <button
-                    onClick={handleExtract}
-                    className="w-full py-4 rounded-2xl font-bold text-base transition-all"
-                    style={{ backgroundColor: "#F9FB75", color: "#000" }}
-                  >
-                    Read the script →
-                  </button>
-                )}
-              </>
-            )}
-
-            {phase === 3 && (
-              <BobMessage>
-                <div className="flex items-center gap-3">
-                  <Loader2
-                    className="h-5 w-5 animate-spin shrink-0"
-                    style={{ color: "#CE99F2" }}
-                  />
-                  <span>
-                    Reading through the script... this can take a minute or two!
-                  </span>
-                </div>
-              </BobMessage>
-            )}
-          </>
-        )}
-
-        {/* ════ PHASE 4: Content preview ════ */}
-        {phase >= 4 && courseStructure && (
-          <>
-            <BobMessage>
-              Done! Found {courseStructure.sections.length} section
-              {courseStructure.sections.length !== 1 ? "s" : ""} with{" "}
-              {courseStructure.sections.reduce(
-                (s, sec) => s + sec.lessons.length,
-                0
-              )}{" "}
-              lessons. Take a look and edit anything that looks off:
-            </BobMessage>
-
-            <div
-              className="bg-white rounded-2xl overflow-hidden p-5"
-              style={{ border: "1px solid rgba(0,0,0,0.08)" }}
-            >
-              <ContentPreview
-                course={courseStructure}
-                onChange={setCourseStructure}
-                onNext={confirmPreview}
               />
-            </div>
-          </>
-        )}
-
-        {/* ════ PHASE 5: ZIP / image upload ════ */}
-        {phase >= 5 && (
-          <>
-            <BobMessage>
-              {zipFile
-                ? `Got your photos from "${zipFile.name}"!`
-                : "Now drag your ZIP folder of photos:"}
-            </BobMessage>
-
-            {phase === 5 && (
-              <div
-                className="rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all"
-                style={{
-                  borderColor: isDraggingZip
-                    ? "#95E1ED"
-                    : "rgba(0,0,0,0.15)",
-                  backgroundColor: isDraggingZip ? "#f0feff" : "#fff",
-                }}
-                onClick={() => zipInputRef.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDraggingZip(true);
-                }}
-                onDragLeave={() => setIsDraggingZip(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDraggingZip(false);
-                  const f = e.dataTransfer.files[0];
-                  if (f) handleZipFile(f);
-                }}
-              >
-                {isProcessingZip ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <Loader2
-                      className="h-8 w-8 animate-spin"
-                      style={{ color: "#95E1ED" }}
-                    />
-                    <span className="font-medium">Extracting images...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <FolderOpen
-                      className="h-10 w-10 mx-auto"
-                      style={{ color: "rgba(0,0,0,0.25)" }}
-                    />
-                    <p
-                      className="font-medium"
-                      style={{ color: "rgba(0,0,0,0.5)" }}
-                    >
-                      Drop ZIP folder here or click to browse
-                    </p>
-                    <p
-                      className="text-sm"
-                      style={{ color: "rgba(0,0,0,0.35)" }}
-                    >
-                      Images will be auto-matched to placeholders by filename order
-                    </p>
-                  </div>
-                )}
-                <input
-                  ref={zipInputRef}
-                  type="file"
-                  accept=".zip,application/zip"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleZipFile(f);
-                  }}
-                />
-              </div>
             )}
           </>
         )}
 
-        {/* ════ PHASE 6: Image matching ════ */}
-        {phase >= 6 && courseStructure && (
+        {/* Step 2: Number */}
+        {seen("number-selection") && (
           <>
-            {zipFile && (
-              <UserBubble>{zipFile.name}</UserBubble>
+            <BobMessage message={`Which ${s.contentType} number?`} />
+            {s.contentNumber !== null ? (
+              <UserBubble>{`${ct} ${s.contentNumber}`}</UserBubble>
+            ) : (
+              <NumberStep max={maxN} onSelect={(n) => dispatch({ type: "SELECT_NUMBER", number: n })} />
             )}
-
-            <BobMessage>
-              Here&apos;s how I matched your photos to the placeholders. You can
-              swap any that look wrong:
-            </BobMessage>
-
-            <div
-              className="bg-white rounded-2xl overflow-hidden p-5"
-              style={{ border: "1px solid rgba(0,0,0,0.08)" }}
-            >
-              <ImageMatcher
-                course={courseStructure}
-                imageAssignments={imageAssignments}
-                onAssignmentsChange={setImageAssignments}
-                onNext={confirmImages}
-              />
-            </div>
           </>
         )}
 
-        {/* ════ PHASE 7: Genially interactives ════ */}
-        {phase >= 7 && courseStructure && (
+        {/* Step 3: PDF upload */}
+        {seen("pdf-upload") && (
           <>
-            <BobMessage>
-              Okay, here are the interactives you&apos;ll need to upload. Paste
-              in the Genially embed URLs:
-            </BobMessage>
-
-            <div
-              className="bg-white rounded-2xl overflow-hidden p-5"
-              style={{ border: "1px solid rgba(0,0,0,0.08)" }}
-            >
-              <GeniallyLinker
-                course={courseStructure}
-                circleToken={circleToken}
-                spaceGroupId={spaceGroupId}
-                geniallyUrls={geniallyUrls}
-                imageAssignments={imageDataUrls}
-                onUrlsChange={setGeniallyUrls}
-                onImportStart={() => {
-                  setIsImporting(true);
-                  setImportProgress([]);
-                  setImportLog(null);
-                  setImportError(null);
-                  setPhase(8);
-                }}
-                onProgress={(event) =>
-                  setImportProgress((prev) => [...prev, event])
+            <BobMessage
+              message={`Awesome! ${ct} ${s.contentNumber} it is. Drop your script PDF here 📄`}
+            />
+            {s.pdfFileName ? (
+              <UserBubble>📄 {s.pdfFileName}</UserBubble>
+            ) : (
+              <PdfUploadStep
+                onFile={(file) =>
+                  requireKeys(() => dispatch({ type: "SET_PDF_FILE", file, fileName: file.name }))
                 }
-                onComplete={(log) => {
-                  setImportLog(log);
-                  setIsImporting(false);
-                }}
-                onError={(message) => {
-                  setImportError(message);
-                  setIsImporting(false);
-                }}
               />
-            </div>
+            )}
           </>
         )}
 
-        {/* ════ PHASE 8: Import progress ════ */}
-        {phase >= 8 && (
+        {/* Step 4: Extracting */}
+        {seen("extracting") && !s.courseStructure && (
           <>
-            <BobMessage>
-              {importLog
-                ? "All done! Your course is live in Circle. 🎉"
-                : importError
-                ? "Hmm, something went wrong. Check the error below:"
-                : "Ready to build! 🏗️ Sending everything to Circle..."}
-            </BobMessage>
-
-            <ImportProgress
-              progress={importProgress}
-              log={importLog}
-              error={importError}
-              isImporting={isImporting}
+            <BobMessage message="Let me read through this… 📖" />
+            <ExtractionStep
+              status={s.extractionStatus}
+              error={s.extractionError}
+              onRetry={() => dispatch({ type: "RETRY_EXTRACTION" })}
             />
           </>
         )}
 
-        <div ref={bottomRef} className="h-8" />
+        {/* Step 5: Review extraction */}
+        {seen("review-extraction") && s.courseStructure && (
+          <>
+            <BobMessage message="Done! Here's what I found:" />
+            {!s.reviewConfirmed ? (
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm animate-fade-in">
+                <ContentPreview
+                  course={s.courseStructure}
+                  onChange={(c) => dispatch({ type: "UPDATE_COURSE", course: c })}
+                  onNext={() => dispatch({ type: "CONFIRM_EXTRACTION" })}
+                />
+              </div>
+            ) : (
+              <UserBubble>Looks good! ✓</UserBubble>
+            )}
+          </>
+        )}
+
+        {/* Step 6: Image ZIP upload */}
+        {seen("image-upload") && (
+          <>
+            <BobMessage message="Now I need the images. Drop your ZIP folder here 📁" />
+            {seen("image-matching") ? (
+              <UserBubble>📁 Found {s.zipImages.length} image{s.zipImages.length !== 1 ? "s" : ""} in the ZIP</UserBubble>
+            ) : (
+              <ImageUploadStep
+                onImages={(imgs) => dispatch({ type: "SET_ZIP_IMAGES", images: imgs })}
+              />
+            )}
+          </>
+        )}
+
+        {/* Step 7: Image matching */}
+        {seen("image-matching") && s.courseStructure && (
+          <>
+            <BobMessage message="Let me match these to your placeholders…" />
+            {s.imageMatchingConfirmed ? (
+              <UserBubble>All images matched ✓</UserBubble>
+            ) : (
+              <ImageMatchingStep
+                course={s.courseStructure}
+                zipImages={s.zipImages}
+                assignments={s.imageAssignments}
+                onAssignmentsChange={(a) => dispatch({ type: "UPDATE_IMAGE_ASSIGNMENTS", assignments: a })}
+                onConfirm={() => dispatch({ type: "CONFIRM_IMAGE_MATCHING" })}
+              />
+            )}
+          </>
+        )}
+
+        {/* Step 8: Genially links */}
+        {seen("genially-links") && s.courseStructure && (
+          <>
+            <BobMessage message="Almost there! Here are the interactive elements that need Genially embeds:" />
+            {s.geniallyConfirmed ? (
+              <UserBubble>Genially URLs added ✓</UserBubble>
+            ) : (
+              <GeniallyStep
+                course={s.courseStructure}
+                urls={s.geniallyUrls}
+                onUrlsChange={(u) => dispatch({ type: "UPDATE_GENIALLY_URLS", urls: u })}
+                onConfirm={() => dispatch({ type: "CONFIRM_GENIALLY" })}
+              />
+            )}
+          </>
+        )}
+
+        {/* Step 9: Import */}
+        {seen("importing") && (
+          <>
+            <BobMessage message="Let's build this! 🏗️" />
+            <ImportStep
+              triggered={s.importTrigger > 0}
+              progress={s.importProgress}
+              status={s.importStatus}
+              log={s.importLog}
+              error={s.importError}
+              onTrigger={() =>
+                requireImportKeys(() => dispatch({ type: "TRIGGER_IMPORT" }))
+              }
+              onRetry={() => dispatch({ type: "RETRY_IMPORT" })}
+            />
+          </>
+        )}
+
+        {/* Step 10: Complete */}
+        {seen("complete") && (
+          <BobMessage message="All done! 🎉 Your course is live on Circle (as drafts)." />
+        )}
+
+        <div ref={endRef} />
       </main>
+
+      {/* Settings drawer */}
+      <SettingsDrawer
+        open={s.settingsOpen}
+        circleToken={s.circleToken}
+        anthropicKey={s.anthropicKey}
+        spaceGroupId={s.spaceGroupId}
+        onClose={() => dispatch({ type: "CLOSE_SETTINGS" })}
+        onCircleToken={(v) => {
+          dispatch({ type: "SET_CIRCLE_TOKEN", value: v });
+          localStorage.setItem("bv_circle_token", v);
+        }}
+        onAnthropicKey={(v) => {
+          dispatch({ type: "SET_ANTHROPIC_KEY", value: v });
+          localStorage.setItem("bv_anthropic_key", v);
+        }}
+        onSpaceGroupId={(v) => {
+          dispatch({ type: "SET_SPACE_GROUP_ID", value: v });
+          localStorage.setItem("bv_space_group_id", v);
+        }}
+      />
     </div>
   );
 }

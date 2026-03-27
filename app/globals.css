@@ -11,15 +11,15 @@
 }
 
 body {
-  background-color: var(--bv-gray);
+  background-color: #ffffff;
   color: var(--bv-black);
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-@keyframes fadeSlideIn {
+@keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -27,7 +27,19 @@ body {
   }
 }
 
-/* Animate new chat items as they appear */
-main > * {
-  animation: fadeSlideIn 0.25s ease-out;
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.3s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.25s ease-out forwards;
 }

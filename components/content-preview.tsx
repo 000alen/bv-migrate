@@ -307,7 +307,7 @@ export function ContentPreview({ course, onChange, onNext }: ContentPreviewProps
       </div>
 
       <Button onClick={onNext} className="w-full" size="lg">
-        Looks good — continue to Image Matching
+        Looks good! ✓
         <ArrowRight className="h-4 w-4" />
       </Button>
 
