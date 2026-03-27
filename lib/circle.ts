@@ -179,28 +179,39 @@ export interface DirectUploadResponse {
 }
 
 export async function getCourseSections(token: string, spaceId: number): Promise<CircleSection[]> {
-  const res = await fetchWithRetry(
-    `${BASE_URL}/course_sections?space_id=${spaceId}`,
-    { method: "GET", headers: authHeaders(token, "GET") }
-  );
-
-  const data = await handleResponse<unknown>(res);
-  if (Array.isArray(data)) return data as CircleSection[];
-  const obj = data as Record<string, unknown>;
-  if (Array.isArray(obj.course_sections)) return obj.course_sections as CircleSection[];
-  return [];
+  // Circle returns paginated: { page, per_page, has_next_page, count, records: [...] }
+  const all: CircleSection[] = [];
+  let page = 1;
+  for (;;) {
+    const res = await fetchWithRetry(
+      `${BASE_URL}/course_sections?space_id=${spaceId}&page=${page}&per_page=100`,
+      { method: "GET", headers: authHeaders(token, "GET") }
+    );
+    const data = await handleResponse<Record<string, unknown>>(res);
+    const records = (Array.isArray(data.records) ? data.records : []) as CircleSection[];
+    all.push(...records);
+    if (!data.has_next_page) break;
+    page++;
+  }
+  return all;
 }
 
 export async function getCourseLessons(token: string, sectionId: number): Promise<CircleLesson[]> {
-  const res = await fetchWithRetry(
-    `${BASE_URL}/course_lessons?section_id=${sectionId}`,
-    { method: "GET", headers: authHeaders(token, "GET") }
-  );
-  const data = await handleResponse<unknown>(res);
-  if (Array.isArray(data)) return data as CircleLesson[];
-  const obj = data as Record<string, unknown>;
-  if (Array.isArray(obj.course_lessons)) return obj.course_lessons as CircleLesson[];
-  return [];
+  // Circle returns paginated: { page, per_page, has_next_page, count, records: [...] }
+  const all: CircleLesson[] = [];
+  let page = 1;
+  for (;;) {
+    const res = await fetchWithRetry(
+      `${BASE_URL}/course_lessons?section_id=${sectionId}&page=${page}&per_page=100`,
+      { method: "GET", headers: authHeaders(token, "GET") }
+    );
+    const data = await handleResponse<Record<string, unknown>>(res);
+    const records = (Array.isArray(data.records) ? data.records : []) as CircleLesson[];
+    all.push(...records);
+    if (!data.has_next_page) break;
+    page++;
+  }
+  return all;
 }
 
 export async function getLessonDetail(token: string, lessonId: number): Promise<CircleLessonDetail> {
@@ -221,12 +232,22 @@ export async function createDirectUpload(
   contentType: string,
   checksum: string
 ): Promise<DirectUploadResponse> {
+  // Circle requires a random key for the blob
+  const key = crypto.randomUUID().replace(/-/g, "");
   const res = await fetchWithRetry(
     `${BASE_URL}/direct_uploads`,
     {
       method: "POST",
       headers: authHeaders(token),
-      body: JSON.stringify({ filename, byte_size: byteSize, content_type: contentType, checksum }),
+      body: JSON.stringify({
+        blob: {
+          key,
+          filename,
+          content_type: contentType,
+          byte_size: byteSize,
+          checksum,
+        },
+      }),
     }
   );
   return handleResponse<DirectUploadResponse>(res);
