@@ -23,10 +23,32 @@ export function ExtractionStep({ status, error, onRetry }: ExtractionStepProps) 
   }
 
   return (
-    <div className="animate-fade-in rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-3">
+    <div className="animate-fade-in rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-4">
+      {/* Skeleton course structure preview */}
+      <div className="space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="space-y-1.5">
+            {/* Section bar */}
+            <div
+              className="h-4 rounded-md bg-gray-200 animate-pulse"
+              style={{ width: `${55 + i * 12}%` }}
+            />
+            {/* Lesson lines */}
+            {[0, 1, ...(i < 2 ? [2] : [])].map((j) => (
+              <div
+                key={j}
+                className="h-3 rounded ml-5 bg-gray-100 animate-pulse"
+                style={{ width: `${38 + j * 13}%` }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Status message */}
+      <div className="flex items-center gap-2 border-t border-gray-100 pt-3">
         <svg
-          className="h-5 w-5 animate-spin text-[#CE99F2]"
+          className="h-4 w-4 animate-spin text-[#CE99F2] flex-shrink-0"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -45,7 +67,9 @@ export function ExtractionStep({ status, error, onRetry }: ExtractionStepProps) 
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
           />
         </svg>
-        <p className="text-sm text-gray-700">{status || "Starting extraction…"}</p>
+        <p className="text-xs text-gray-500">
+          {status || "Reading through the script…"}
+        </p>
       </div>
     </div>
   );

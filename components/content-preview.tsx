@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CourseStructure, ContentBlock } from "@/lib/schema";
+import { CourseStructure, ContentBlock, ContentBlockSchema } from "@/lib/schema";
 import {
   ChevronDown,
   ChevronRight,
@@ -97,14 +97,24 @@ function EditModal({ block, onSave, onClose }: EditModalProps) {
   const [parseError, setParseError] = React.useState<string | null>(null);
 
   function handleSave() {
+    let raw: unknown;
     try {
-      const parsed = JSON.parse(json) as ContentBlock;
-      setParseError(null);
-      onSave(parsed);
-      onClose();
+      raw = JSON.parse(json);
     } catch (e) {
-      setParseError(e instanceof Error ? e.message : "Invalid JSON");
+      setParseError(`JSON syntax error: ${e instanceof Error ? e.message : String(e)}`);
+      return;
     }
+    const result = ContentBlockSchema.safeParse(raw);
+    if (!result.success) {
+      const issues = result.error.issues
+        .map((i) => `${i.path.join(".") || "root"}: ${i.message}`)
+        .join("; ");
+      setParseError(`Validation error — ${issues}`);
+      return;
+    }
+    setParseError(null);
+    onSave(result.data);
+    onClose();
   }
 
   return (

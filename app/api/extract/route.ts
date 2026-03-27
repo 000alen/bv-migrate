@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Configurable model — default to Sonnet (cheaper); pass x-model: claude-opus-4-6 for higher accuracy
+    const model = req.headers.get("x-model") ?? "claude-sonnet-4-6";
+
     const formData = await req.formData();
     const pdfFile = formData.get("pdf") as File | null;
 
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
     const anthropic = createAnthropic({ apiKey: anthropicKey });
 
     const result = await generateObject({
-      model: anthropic("claude-opus-4-6"),
+      model: anthropic(model),
       schema: CourseStructureSchema,
       messages: [
         {
@@ -70,7 +73,48 @@ export async function POST(req: NextRequest) {
       system: SYSTEM_PROMPT,
     });
 
-    return Response.json(result.object);
+    // Explicit re-validation through Zod schema
+    const parsed = CourseStructureSchema.safeParse(result.object);
+    if (!parsed.success) {
+      console.error("Extraction schema validation failed:", parsed.error.flatten());
+      return Response.json(
+        { error: "Extraction produced invalid structure", details: parsed.error.flatten() },
+        { status: 422 }
+      );
+    }
+
+    const course = parsed.data;
+
+    // Semantic validation beyond what Zod can express
+    const validationErrors: string[] = [];
+
+    for (const section of course.sections) {
+      if (section.lessons.length === 0) {
+        validationErrors.push(`Section "${section.name}" has no lessons`);
+      }
+      for (const lesson of section.lessons) {
+        if (lesson.blocks.length === 0) {
+          validationErrors.push(`Lesson "${lesson.name}" has no content blocks`);
+        }
+        for (const block of lesson.blocks) {
+          if (block.type === "quiz" && block.correctIndex >= block.options.length) {
+            validationErrors.push(
+              `Quiz in "${lesson.name}": correctIndex ${block.correctIndex} is out of bounds (${block.options.length} options)`
+            );
+          }
+        }
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      console.error("Extraction semantic validation failed:", validationErrors);
+      return Response.json(
+        { error: "Extracted content failed validation", details: validationErrors },
+        { status: 422 }
+      );
+    }
+
+    return Response.json(course);
   } catch (error) {
     console.error("Extract error:", error);
     const message = error instanceof Error ? error.message : String(error);

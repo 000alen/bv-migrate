@@ -1,9 +1,42 @@
 "use client";
 
-import { useReducer, useEffect, useRef } from "react";
+import { useReducer, useEffect, useRef, Component, ReactNode } from "react";
 import { Settings } from "lucide-react";
+
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <p className="font-semibold text-red-600 text-lg">Something went wrong.</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {(this.state.error as Error).message}
+          </p>
+          <button
+            onClick={() => this.setState({ error: null })}
+            className="mt-4 text-sm underline text-gray-600 hover:text-black"
+          >
+            Try again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import type { CourseStructure } from "@/lib/schema";
-import type { ContentType, ImportLog, ProgressEvent, ZipImage } from "@/lib/types";
+import type { ContentType, ImportLog, ImportProgressEvent, ZipImage } from "@/lib/types";
 import { BobMessage } from "@/components/bob-message";
 import { UserBubble } from "@/components/user-bubble";
 import { SettingsDrawer } from "@/components/settings-drawer";
@@ -62,10 +95,11 @@ interface AppState {
   geniallyConfirmed: boolean;
 
   importTrigger: number;
-  importProgress: ProgressEvent[];
+  importProgress: ImportProgressEvent[];
   importStatus: string;
   importLog: ImportLog | null;
   importError: string | null;
+  importPartial: ImportLog | null;
 }
 
 type Action =
@@ -92,10 +126,10 @@ type Action =
   | { type: "UPDATE_GENIALLY_URLS"; urls: Record<string, string> }
   | { type: "CONFIRM_GENIALLY" }
   | { type: "TRIGGER_IMPORT" }
-  | { type: "IMPORT_PROGRESS"; event: ProgressEvent }
+  | { type: "IMPORT_PROGRESS"; event: ImportProgressEvent }
   | { type: "IMPORT_STATUS"; message: string }
   | { type: "IMPORT_COMPLETE"; log: ImportLog }
-  | { type: "IMPORT_ERROR"; error: string }
+  | { type: "IMPORT_ERROR"; error: string; partial?: ImportLog | null }
   | { type: "RETRY_IMPORT" };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,6 +182,7 @@ const initial: AppState = {
   importStatus: "",
   importLog: null,
   importError: null,
+  importPartial: null,
 };
 
 function reducer(s: AppState, a: Action): AppState {
@@ -211,17 +246,17 @@ function reducer(s: AppState, a: Action): AppState {
     case "CONFIRM_GENIALLY":
       return { ...s, geniallyConfirmed: true, ...visit(s, "importing") };
     case "TRIGGER_IMPORT":
-      return { ...s, importTrigger: s.importTrigger + 1, importProgress: [], importStatus: "", importError: null };
+      return { ...s, importTrigger: s.importTrigger + 1, importProgress: [], importStatus: "", importError: null, importPartial: null };
     case "IMPORT_PROGRESS":
       return { ...s, importProgress: [...s.importProgress, a.event], importStatus: a.event.message };
     case "IMPORT_STATUS":
       return { ...s, importStatus: a.message };
     case "IMPORT_COMPLETE":
-      return { ...s, importLog: a.log, importError: null, ...visit(s, "complete") };
+      return { ...s, importLog: a.log, importError: null, importPartial: null, ...visit(s, "complete") };
     case "IMPORT_ERROR":
-      return { ...s, importError: a.error };
+      return { ...s, importError: a.error, importPartial: a.partial ?? null };
     case "RETRY_IMPORT":
-      return { ...s, importError: null, importProgress: [], importStatus: "", importTrigger: s.importTrigger + 1 };
+      return { ...s, importError: null, importProgress: [], importStatus: "", importPartial: null, importTrigger: s.importTrigger + 1 };
     default:
       return s;
   }
@@ -327,15 +362,15 @@ export default function Page() {
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
             try {
-              const data = JSON.parse(line.slice(6)) as { type: string; message?: string; step?: number; total?: number; log?: ImportLog };
+              const data = JSON.parse(line.slice(6)) as { type: string; message?: string; step?: number; total?: number; log?: ImportLog; partial?: ImportLog | null };
               if (data.type === "progress") {
-                dispatch({ type: "IMPORT_PROGRESS", event: data as ProgressEvent });
+                dispatch({ type: "IMPORT_PROGRESS", event: data as ImportProgressEvent });
               } else if (data.type === "complete" && data.log) {
                 dispatch({ type: "IMPORT_COMPLETE", log: data.log });
               } else if (data.type === "error") {
-                dispatch({ type: "IMPORT_ERROR", error: data.message ?? "Unknown error" });
+                dispatch({ type: "IMPORT_ERROR", error: data.message ?? "Unknown error", partial: data.partial });
               }
-            } catch { /* ignore parse errors */ }
+            } catch (e) { console.warn("SSE parse error:", e); }
           }
         }
       })
@@ -384,6 +419,7 @@ export default function Page() {
       </header>
 
       {/* Conversation */}
+      <ErrorBoundary>
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-4 pb-24">
         {/* Greeting — always shown */}
         <BobMessage
@@ -520,22 +556,28 @@ export default function Page() {
         )}
 
         {/* Step 9: Import */}
-        {seen("importing") && (
-          <>
-            <BobMessage message="Let's build this! 🏗️" />
-            <ImportStep
-              triggered={s.importTrigger > 0}
-              progress={s.importProgress}
-              status={s.importStatus}
-              log={s.importLog}
-              error={s.importError}
-              onTrigger={() =>
-                requireImportKeys(() => dispatch({ type: "TRIGGER_IMPORT" }))
-              }
-              onRetry={() => dispatch({ type: "RETRY_IMPORT" })}
-            />
-          </>
-        )}
+        {seen("importing") && s.courseStructure && (() => {
+          const totalLessons = s.courseStructure.sections.reduce((n, sec) => n + sec.lessons.length, 0);
+          return (
+            <>
+              <BobMessage
+                message={`Let's build this! 🏗️ I'll create "${s.courseStructure.name}" with ${s.courseStructure.sections.length} section${s.courseStructure.sections.length !== 1 ? "s" : ""} and ${totalLessons} lesson${totalLessons !== 1 ? "s" : ""} — all set to draft.`}
+                subtext="⚠️ Images will stay as placeholders ([IMAGE N: …]) in the lesson HTML — replace them manually in Circle after import."
+              />
+              <ImportStep
+                triggered={s.importTrigger > 0}
+                progress={s.importProgress}
+                status={s.importStatus}
+                log={s.importLog}
+                error={s.importError}
+                onTrigger={() =>
+                  requireImportKeys(() => dispatch({ type: "TRIGGER_IMPORT" }))
+                }
+                onRetry={() => dispatch({ type: "RETRY_IMPORT" })}
+              />
+            </>
+          );
+        })()}
 
         {/* Step 10: Complete */}
         {seen("complete") && (
@@ -544,6 +586,7 @@ export default function Page() {
 
         <div ref={endRef} />
       </main>
+      </ErrorBoundary>
 
       {/* Settings drawer */}
       <SettingsDrawer

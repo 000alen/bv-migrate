@@ -46,6 +46,7 @@ export function SettingsDrawer({
         <DialogPrimitive.Content
           className="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white shadow-2xl flex flex-col animate-slide-in-right"
           aria-describedby="settings-desc"
+          aria-label="Settings"
         >
           <div className="flex items-center justify-between p-6 border-b border-gray-100">
             <DialogPrimitive.Title className="font-semibold text-base">
@@ -75,6 +76,7 @@ export function SettingsDrawer({
               onChange={onAnthropicKey}
               placeholder="sk-ant-..."
               hint="Used to extract course content from your PDF."
+              autoFocus
             />
 
             <Field
@@ -121,6 +123,7 @@ function Field({
   onChange,
   placeholder,
   hint,
+  autoFocus,
 }: {
   label: string;
   id: string;
@@ -128,6 +131,7 @@ function Field({
   onChange: (v: string) => void;
   placeholder: string;
   hint: string;
+  autoFocus?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
@@ -140,9 +144,11 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        autoFocus={autoFocus}
+        aria-describedby={`${id}-hint`}
         className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#CE99F2] bg-white"
       />
-      <p className="text-xs text-gray-500">{hint}</p>
+      <p id={`${id}-hint`} className="text-xs text-gray-500">{hint}</p>
     </div>
   );
 }

@@ -9,9 +9,20 @@ interface PdfUploadStepProps {
 export function PdfUploadStep({ onFile }: PdfUploadStepProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
 
   function handleFile(file: File) {
-    if (file.type !== "application/pdf") return;
+    if (file.type !== "application/pdf" && !file.name.endsWith(".pdf")) {
+      setError("Please upload a PDF file.");
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      setError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 50 MB.`);
+      return;
+    }
+    setError(null);
     onFile(file);
   }
 
@@ -41,9 +52,10 @@ export function PdfUploadStep({ onFile }: PdfUploadStepProps) {
           <p className="text-sm font-medium text-black">
             Drop your PDF here or click to browse
           </p>
-          <p className="text-xs text-gray-500">PDF files only</p>
+          <p className="text-xs text-gray-500">PDF files only · max 50 MB</p>
         </div>
       </button>
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       <input
         ref={inputRef}
         type="file"

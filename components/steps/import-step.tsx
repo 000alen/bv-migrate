@@ -1,10 +1,10 @@
 "use client";
 
-import type { ProgressEvent, ImportLog } from "@/lib/types";
+import type { ImportProgressEvent, ImportLog } from "@/lib/types";
 
 interface ImportStepProps {
   triggered: boolean;
-  progress: ProgressEvent[];
+  progress: ImportProgressEvent[];
   status: string;
   log: ImportLog | null;
   error: string | null;

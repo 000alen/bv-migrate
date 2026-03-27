@@ -1,6 +1,6 @@
 export type ContentType = "module" | "milestone" | "micromodule";
 
-export interface ProgressEvent {
+export interface ImportProgressEvent {
   type: "progress";
   message: string;
   step: number;
@@ -19,6 +19,15 @@ export interface ImportLog {
     lessonName: string;
     placeholderName: string;
     embedUrl: string;
+  }>;
+}
+
+export interface PartialImportCreated {
+  courseId: number | null;
+  sections: Array<{
+    id: number;
+    name: string;
+    lessons: Array<{ id: number; name: string }>;
   }>;
 }
 

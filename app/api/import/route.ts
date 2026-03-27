@@ -1,22 +1,11 @@
 import { NextRequest } from "next/server";
+import type { ImportLog } from "@/lib/types";
 import { CourseStructure } from "@/lib/schema";
 import { buildHtmlWithGenially } from "@/lib/html-builder";
 import { createCourse, createSection, createLesson } from "@/lib/circle";
 
-export interface ImportLog {
-  courseId: number;
-  courseName: string;
-  sections: Array<{
-    id: number;
-    name: string;
-    lessons: Array<{ id: number; name: string }>;
-  }>;
-  interactives: Array<{
-    lessonName: string;
-    placeholderName: string;
-    embedUrl: string;
-  }>;
-}
+// Re-export so existing imports from this path still work
+export type { ImportLog };
 
 interface ImportRequest {
   course: CourseStructure;
@@ -35,15 +24,25 @@ export async function POST(req: NextRequest) {
         );
       };
 
+      // Track what has been created so we can surface partial results on error
+      const partial: ImportLog = {
+        courseId: -1,
+        courseName: "",
+        sections: [],
+        interactives: [],
+      };
+
       try {
         const body: ImportRequest = await req.json();
         const { course, circleToken, spaceGroupId, geniallyUrls } = body;
 
         if (!course || !circleToken || !spaceGroupId) {
-          send({ type: "error", message: "Missing required fields: course, circleToken, spaceGroupId" });
+          send({ type: "error", message: "Missing required fields: course, circleToken, spaceGroupId", partial: null });
           controller.close();
           return;
         }
+
+        partial.courseName = course.name;
 
         // Count total steps: 1 (course) + sections + lessons
         const totalLessons = course.sections.reduce(
@@ -67,14 +66,8 @@ export async function POST(req: NextRequest) {
           course.slug,
           spaceGroupId
         );
+        partial.courseId = createdCourse.id;
         step++;
-
-        const log: ImportLog = {
-          courseId: createdCourse.id,
-          courseName: course.name,
-          sections: [],
-          interactives: [],
-        };
 
         for (const section of course.sections) {
           send({
@@ -96,6 +89,7 @@ export async function POST(req: NextRequest) {
             name: section.name,
             lessons: [],
           };
+          partial.sections.push(sectionLog);
 
           for (const lesson of section.lessons) {
             send({
@@ -105,12 +99,12 @@ export async function POST(req: NextRequest) {
               total,
             });
 
-            // Collect interactives for this lesson
+            // Collect Genially interactives for the log
             for (const block of lesson.blocks) {
               if (block.type === "genially_placeholder") {
                 const url = geniallyUrls[block.name];
                 if (url) {
-                  log.interactives.push({
+                  partial.interactives.push({
                     lessonName: lesson.name,
                     placeholderName: block.name,
                     embedUrl: url,
@@ -119,6 +113,8 @@ export async function POST(req: NextRequest) {
               }
             }
 
+            // Images are preserved as [IMAGE N: description] placeholders in the HTML.
+            // Circle does not support programmatic image upload via REST API.
             const bodyHtml = buildHtmlWithGenially(lesson.blocks, geniallyUrls);
             const createdLesson = await createLesson(
               circleToken,
@@ -133,14 +129,17 @@ export async function POST(req: NextRequest) {
               name: lesson.name,
             });
           }
-
-          log.sections.push(sectionLog);
         }
 
-        send({ type: "complete", log });
+        send({ type: "complete", log: partial });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        send({ type: "error", message });
+        // Include whatever was successfully created so the user knows what to clean up
+        send({
+          type: "error",
+          message,
+          partial: partial.courseId !== -1 ? partial : null,
+        });
       } finally {
         controller.close();
       }
