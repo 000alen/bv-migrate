@@ -387,7 +387,7 @@ export default function Page() {
                   };
                   existing.unshift(newEntry);
                   localStorage.setItem("bv_import_history", JSON.stringify(existing.slice(0, 50)));
-                } catch { /* ignore */ }
+                } catch (e) { console.error("Failed to save import history:", e); }
                 dispatch({ type: "IMPORT_COMPLETE", log: data.log });
               } else if (data.type === "error") {
                 dispatch({ type: "IMPORT_ERROR", error: data.message ?? "Unknown error", partial: data.partial });

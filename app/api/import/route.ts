@@ -174,8 +174,9 @@ export async function POST(req: NextRequest) {
 
             // Inject CDN note after each uploaded image placeholder
             // Placeholder HTML: <p>📷 <strong>[IMAGE N: description]</strong></p>
+            // Use .*? (non-greedy) anchored to </strong></p> to handle ] in descriptions
             bodyHtml = bodyHtml.replace(
-              /(<p>📷 <strong>\[IMAGE (\d+): [^\]]*\]<\/strong><\/p>)/g,
+              /(<p>📷 <strong>\[IMAGE (\d+): .*?\]<\/strong><\/p>)/g,
               (match, _full, idxStr) => {
                 const signedId = signedIds[parseInt(idxStr, 10)];
                 if (!signedId) return match;

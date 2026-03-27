@@ -56,8 +56,8 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
     try {
       const stored = localStorage.getItem("bv_import_history");
       if (stored) setHistory(JSON.parse(stored) as ImportHistory[]);
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error("Failed to load import history:", e);
     }
   }, []);
 

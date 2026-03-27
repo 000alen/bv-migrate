@@ -1,12 +1,16 @@
 const BASE_URL = "https://app.circle.so/api/admin/v2";
 
-function authHeaders(token: string): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
+function authHeaders(token: string, method: "GET" | "POST" | "PUT" | "DELETE" = "POST"): Record<string, string> {
+  const headers: Record<string, string> = {
     "User-Agent": "bv-migrate/1.0 (beVisioneers Content Constructors)",
     Accept: "application/json",
     Authorization: `Token ${token}`,
   };
+  // Only include Content-Type for methods that send a body
+  if (method !== "GET") {
+    headers["Content-Type"] = "application/json";
+  }
+  return headers;
 }
 
 // ── Retry with exponential backoff ──────────────────────────────────────────
@@ -55,8 +59,9 @@ async function fetchWithRetry(
       const body = await res.json();
       if (body.message) message = `Circle API: ${body.message}`;
       else if (body.error) message = `Circle API: ${body.error}`;
-    } catch {
-      // ignore parse errors
+    } catch (e) {
+      // Response body wasn't JSON — use the HTTP status message instead
+      console.warn("Could not parse Circle error response body:", e);
     }
     throw new Error(message);
   }
@@ -176,8 +181,9 @@ export interface DirectUploadResponse {
 export async function getCourseSections(token: string, spaceId: number): Promise<CircleSection[]> {
   const res = await fetchWithRetry(
     `${BASE_URL}/course_sections?space_id=${spaceId}`,
-    { method: "GET", headers: authHeaders(token) }
+    { method: "GET", headers: authHeaders(token, "GET") }
   );
+
   const data = await handleResponse<unknown>(res);
   if (Array.isArray(data)) return data as CircleSection[];
   const obj = data as Record<string, unknown>;
@@ -188,7 +194,7 @@ export async function getCourseSections(token: string, spaceId: number): Promise
 export async function getCourseLessons(token: string, sectionId: number): Promise<CircleLesson[]> {
   const res = await fetchWithRetry(
     `${BASE_URL}/course_lessons?section_id=${sectionId}`,
-    { method: "GET", headers: authHeaders(token) }
+    { method: "GET", headers: authHeaders(token, "GET") }
   );
   const data = await handleResponse<unknown>(res);
   if (Array.isArray(data)) return data as CircleLesson[];
@@ -200,7 +206,7 @@ export async function getCourseLessons(token: string, sectionId: number): Promis
 export async function getLessonDetail(token: string, lessonId: number): Promise<CircleLessonDetail> {
   const res = await fetchWithRetry(
     `${BASE_URL}/course_lessons/${lessonId}`,
-    { method: "GET", headers: authHeaders(token) }
+    { method: "GET", headers: authHeaders(token, "GET") }
   );
   const data = await handleResponse<unknown>(res);
   const obj = data as Record<string, unknown>;

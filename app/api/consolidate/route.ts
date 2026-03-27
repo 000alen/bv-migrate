@@ -59,9 +59,12 @@ export async function POST(req: NextRequest) {
           const sectData: SourceData["sections"] = [];
           for (const sec of sections) {
             const lessons = await getCourseLessons(circleToken, sec.id);
-            const lessonDetails = await Promise.all(
-              lessons.map((l) => getLessonDetail(circleToken, l.id))
-            );
+            // Serialize lesson fetches to avoid rate limiting (Circle has 30K/month cap)
+            const lessonDetails: Array<{ id: number; name: string; body_html: string }> = [];
+            for (const l of lessons) {
+              const detail = await getLessonDetail(circleToken, l.id);
+              lessonDetails.push(detail);
+            }
             sectData.push({ id: sec.id, name: sec.name, lessons: lessonDetails });
           }
           sourceData.push({ label: source.label, sections: sectData });

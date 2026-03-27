@@ -43,7 +43,8 @@ export function ImageUploadStep({ onImages }: ImageUploadStepProps) {
       }
 
       onImages(images);
-    } catch {
+    } catch (e) {
+      console.error("ZIP extraction failed:", e);
       setError("Failed to read ZIP file.");
       setLoading(false);
     }
