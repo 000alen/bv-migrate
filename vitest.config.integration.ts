@@ -13,9 +13,6 @@ export default defineConfig({
     include: ["tests/integration/**/*.test.ts"],
     testTimeout: 180_000,
     hookTimeout: 180_000,
-    pool: "forks",
-    poolOptions: {
-      forks: { singleFork: true }, // sequential — avoid Circle rate limits
-    },
+    fileParallelism: false, // sequential — avoid Circle rate limits
   },
 });

@@ -67,9 +67,9 @@ async function fetchWithRetry(
     // "Missing record. Please try again later" — Circle's eventual consistency
     // error on rapid writes. They literally tell us to retry, so we do.
     if (message.includes("try again later") && attempt < maxAttempts) {
-      const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
-      console.warn(`fetchWithRetry: "${message}" — retrying in ${delayMs}ms (attempt ${attempt}/${maxAttempts})`);
-      await new Promise((r) => setTimeout(r, delayMs));
+      await new Promise((r) =>
+        setTimeout(r, baseDelayMs * Math.pow(2, attempt - 1))
+      );
       continue;
     }
 
