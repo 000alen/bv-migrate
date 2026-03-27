@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
 
         if (!sources?.length || !combinedName || !circleToken || !spaceGroupId) {
           send({ type: "error", message: "Missing required fields" });
-          close();
           return;
         }
 

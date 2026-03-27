@@ -29,13 +29,13 @@ function blockToHtml(
       return block.cards
         .map(
           (card) =>
-            `<blockquote><p><strong>💡 ${esc(card.front)}</strong></p><p>${card.back}</p></blockquote>`
+            `<blockquote><p><strong>💡 ${esc(card.front)}</strong></p><p>${esc(card.back)}</p></blockquote>`
         )
         .join("\n");
 
     case "accordion":
       return block.tabs
-        .map((tab) => `<h4>▸ ${esc(tab.title)}</h4>\n${tab.content}`)
+        .map((tab) => `<h4>▸ ${esc(tab.title)}</h4>\n<p>${esc(tab.content)}</p>`)
         .join("\n");
 
     case "quiz": {
@@ -57,7 +57,7 @@ function blockToHtml(
       const labels = block.labels
         .map(
           (label) =>
-            `<p><strong>${esc(label.title)}</strong></p>\n<p>${label.content}</p>`
+            `<p><strong>${esc(label.title)}</strong></p>\n<p>${esc(label.content)}</p>`
         )
         .join("\n");
       return `<p>📷 <strong>[IMAGE: ${esc(block.description)}]</strong></p>\n${labels}`;
@@ -79,7 +79,7 @@ function blockToHtml(
       const steps = block.steps
         .map(
           (step) =>
-            `<p><strong>${esc(step.title)}</strong></p>\n<p>${step.content}</p>`
+            `<p><strong>${esc(step.title)}</strong></p>\n<p>${esc(step.content)}</p>`
         )
         .join("\n");
       return `<p>🎮 <strong>[TIMELINE: ${esc(block.description)}]</strong></p>\n${steps}`;
@@ -115,7 +115,7 @@ function blockToHtml(
     }
 
     case "quote":
-      return `<blockquote><p>${block.content}</p></blockquote>`;
+      return `<blockquote><p>${esc(block.content)}</p></blockquote>`;
 
     case "file_attachment":
       return `<p>📎 <strong>${esc(block.name)}</strong>: ${esc(block.description)}</p>`;

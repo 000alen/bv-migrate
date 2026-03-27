@@ -238,10 +238,9 @@ describe("ContentBlockSchema — quiz correctIndex bounds", () => {
     expect(ContentBlockSchema.safeParse({ ...base, correctIndex: 0 }).success).toBe(true);
   });
 
-  it("correctIndex too high (beyond options.length) is NOT rejected by schema", () => {
-    // BUG: schema only enforces .min(0) but has no .max() upper bound.
-    // correctIndex: 99 with only 3 options is semantically invalid but passes validation.
-    expect(ContentBlockSchema.safeParse({ ...base, correctIndex: 99 }).success).toBe(true);
+  it("correctIndex too high (beyond options.length) is rejected by schema", () => {
+    // FIXED: schema now has a .refine() that validates correctIndex < options.length
+    expect(ContentBlockSchema.safeParse({ ...base, correctIndex: 99 }).success).toBe(false);
   });
 
   it("non-integer correctIndex is rejected", () => {
@@ -257,19 +256,19 @@ describe("ContentBlockSchema — quiz correctIndex bounds", () => {
 
 // ─── Empty arrays ─────────────────────────────────────────────────────────────
 
-describe("ContentBlockSchema — empty arrays", () => {
-  it("flashcard with empty cards array is accepted (no min(1) on schema)", () => {
-    // BUG: an empty flashcard has no cards — semantically invalid, but schema has no .min(1) constraint
-    expect(ContentBlockSchema.safeParse({ type: "flashcard", cards: [] }).success).toBe(true);
+describe("ContentBlockSchema — empty arrays are rejected", () => {
+  it("flashcard with empty cards array is rejected", () => {
+    // FIXED: .min(1) on cards
+    expect(ContentBlockSchema.safeParse({ type: "flashcard", cards: [] }).success).toBe(false);
   });
 
-  it("accordion with empty tabs array is accepted (no min(1) on schema)", () => {
-    // BUG: same — no .min(1) on tabs
-    expect(ContentBlockSchema.safeParse({ type: "accordion", tabs: [] }).success).toBe(true);
+  it("accordion with empty tabs array is rejected", () => {
+    // FIXED: .min(1) on tabs
+    expect(ContentBlockSchema.safeParse({ type: "accordion", tabs: [] }).success).toBe(false);
   });
 
-  it("quiz with empty options array is accepted (no min(1) on schema)", () => {
-    // BUG: a quiz with no options is not meaningful, but schema allows it
+  it("quiz with empty options array is rejected", () => {
+    // FIXED: .min(2) on options (need at least 2 choices for a quiz)
     expect(
       ContentBlockSchema.safeParse({
         type: "quiz",
@@ -279,17 +278,30 @@ describe("ContentBlockSchema — empty arrays", () => {
         feedbackCorrect: "Yes",
         feedbackIncorrect: "No",
       }).success
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("checklist with empty items array is accepted (no min(1) on schema)", () => {
-    // BUG: no .min(1) on checklist items
-    expect(ContentBlockSchema.safeParse({ type: "checklist", items: [] }).success).toBe(true);
+  it("quiz with only 1 option is rejected", () => {
+    expect(
+      ContentBlockSchema.safeParse({
+        type: "quiz",
+        question: "Q?",
+        options: ["Only one"],
+        correctIndex: 0,
+        feedbackCorrect: "Yes",
+        feedbackIncorrect: "No",
+      }).success
+    ).toBe(false);
   });
 
-  it("button_stack with empty buttons array is accepted (no min(1) on schema)", () => {
-    // BUG: no .min(1) on button_stack buttons
-    expect(ContentBlockSchema.safeParse({ type: "button_stack", buttons: [] }).success).toBe(true);
+  it("checklist with empty items array is rejected", () => {
+    // FIXED: .min(1) on checklist items
+    expect(ContentBlockSchema.safeParse({ type: "checklist", items: [] }).success).toBe(false);
+  });
+
+  it("button_stack with empty buttons array is rejected", () => {
+    // FIXED: .min(1) on button_stack buttons
+    expect(ContentBlockSchema.safeParse({ type: "button_stack", buttons: [] }).success).toBe(false);
   });
 });
 

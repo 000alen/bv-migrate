@@ -13,6 +13,7 @@ export function createSSEStream(): {
   close: () => void;
 } {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let closed = false;
   const stream = new ReadableStream<Uint8Array>({
     start(c) {
       controller = c;
@@ -22,10 +23,22 @@ export function createSSEStream(): {
   return {
     stream,
     send(data: object) {
-      controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`));
+      if (closed) return;
+      try {
+        controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`));
+      } catch {
+        // Stream already closed by client disconnect
+        closed = true;
+      }
     },
     close() {
-      controller.close();
+      if (closed) return;
+      closed = true;
+      try {
+        controller.close();
+      } catch {
+        // Already closed
+      }
     },
   };
 }

@@ -21,17 +21,19 @@ describe("buildHtml", () => {
     expect(buildHtml([{ type: "heading", level: 4, text: "H4" }])).toContain("<h4>");
   });
 
-  it("flashcard renders front/back in blockquote", () => {
-    const html = buildHtml([{ type: "flashcard", cards: [{ front: "Q", back: "<p>A</p>" }] }]);
+  it("flashcard renders front/back in blockquote with both escaped", () => {
+    const html = buildHtml([{ type: "flashcard", cards: [{ front: "Q", back: "Answer with <tag>" }] }]);
     expect(html).toContain("<blockquote>");
     expect(html).toContain("💡 Q");
-    expect(html).toContain("<p>A</p>"); // back is HTML, not escaped
+    expect(html).toContain("Answer with &lt;tag&gt;"); // back is now escaped
+    expect(html).not.toContain("<tag>");
   });
 
-  it("accordion renders tabs with title escaped, content as HTML", () => {
-    const html = buildHtml([{ type: "accordion", tabs: [{ title: "Tab <1>", content: "<p>Content</p>" }] }]);
+  it("accordion renders tabs with title and content both escaped", () => {
+    const html = buildHtml([{ type: "accordion", tabs: [{ title: "Tab <1>", content: "Content with <b>html</b>" }] }]);
     expect(html).toContain("▸ Tab &lt;1&gt;");
-    expect(html).toContain("<p>Content</p>");
+    expect(html).toContain("Content with &lt;b&gt;html&lt;/b&gt;"); // content is now escaped
+    expect(html).not.toContain("<b>html</b>");
   });
 
   it("quiz marks correct answer with ✓", () => {
@@ -71,15 +73,16 @@ describe("buildHtml", () => {
     expect(html).toContain("[IMAGE 3: A photo]");
   });
 
-  it("labeled_image renders description and labels", () => {
+  it("labeled_image renders description and labels with content escaped", () => {
     const html = buildHtml([{
       type: "labeled_image",
       description: "Diagram",
-      labels: [{ title: "Part A", content: "<p>Details</p>" }],
+      labels: [{ title: "Part A", content: "Details with <em>emphasis</em>" }],
     }]);
     expect(html).toContain("[IMAGE: Diagram]");
     expect(html).toContain("Part A");
-    expect(html).toContain("<p>Details</p>");
+    expect(html).toContain("Details with &lt;em&gt;emphasis&lt;/em&gt;");
+    expect(html).not.toContain("<em>emphasis</em>");
   });
 
   it("sorting_activity renders categories and items", () => {
@@ -93,14 +96,16 @@ describe("buildHtml", () => {
     expect(html).toContain("item1");
   });
 
-  it("timeline renders steps", () => {
+  it("timeline renders steps with content escaped", () => {
     const html = buildHtml([{
       type: "timeline",
       description: "History",
-      steps: [{ title: "2020", content: "<p>Event</p>" }],
+      steps: [{ title: "2020", content: "Event with <script>alert(1)</script>" }],
     }]);
     expect(html).toContain("[TIMELINE: History]");
     expect(html).toContain("2020");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
   });
 
   it("checklist renders items with checkboxes", () => {
@@ -119,10 +124,11 @@ describe("buildHtml", () => {
     expect(html).toContain("Click");
   });
 
-  it("quote renders in blockquote, content as HTML", () => {
-    const html = buildHtml([{ type: "quote", content: "<p>Wise words</p>" }]);
+  it("quote renders in blockquote with content escaped", () => {
+    const html = buildHtml([{ type: "quote", content: "Wise words with <b>bold</b>" }]);
     expect(html).toContain("<blockquote>");
-    expect(html).toContain("<p>Wise words</p>");
+    expect(html).toContain("Wise words with &lt;b&gt;bold&lt;/b&gt;");
+    expect(html).not.toContain("<b>bold</b>");
   });
 
   it("padlet renders placeholder", () => {

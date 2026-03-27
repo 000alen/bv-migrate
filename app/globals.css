@@ -1,14 +1,6 @@
 @import "tailwindcss";
 
 :root {
-  --bv-black: #000000;
-  --bv-white: #ffffff;
-  --bv-gray: #f5f6f1;
-  --bv-purple: #ce99f2;
-  --bv-yellow: #f9fb75;
-  --bv-orange: #f99756;
-  --bv-cyan: #95e1ed;
-
   --brand-purple: #CE99F2;
   --brand-yellow: #F9FB75;
   --brand-orange: #f99756;

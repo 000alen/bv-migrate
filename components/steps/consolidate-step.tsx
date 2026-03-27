@@ -36,6 +36,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [resultLog, setResultLog] = useState<ConsolidateLog | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
   useEffect(() => {
     try {
@@ -44,6 +45,11 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
     } catch (e) {
       console.error("Failed to load import history:", e);
     }
+    return () => {
+      // Abort any in-flight fetch on unmount
+      abortController?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleModule(spaceId: number) {
@@ -108,6 +114,9 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
     setProgress([]);
     setStatus("Starting consolidation...");
 
+    const controller = new AbortController();
+    setAbortController(controller);
+
     try {
       const res = await fetch("/api/consolidate", {
         method: "POST",
@@ -119,6 +128,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
           circleToken,
           spaceGroupId: spaceGroupIdNum,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) throw new Error("Consolidation request failed");
@@ -139,9 +149,11 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
         },
       });
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       onError(err instanceof Error ? err.message : String(err));
     } finally {
       setRunning(false);
+      setAbortController(null);
     }
   }
 

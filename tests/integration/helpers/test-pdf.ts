@@ -78,5 +78,5 @@ export const TEST_PDF: Buffer = makeTestPdf();
  * Compatible with NextRequest / the extract route handler.
  */
 export function makePdfFile(name = "test-module.pdf"): File {
-  return new File([TEST_PDF], name, { type: "application/pdf" });
+  return new File([TEST_PDF as unknown as BlobPart], name, { type: "application/pdf" });
 }
