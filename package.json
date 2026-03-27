@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:sweep": "vitest run --config vitest.config.integration.ts tests/integration/sweep.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
@@ -34,13 +38,18 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.5",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.5.14",
+    "jsdom": "^29.0.1",
     "tailwindcss": "^4.1.5",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.2"
   },
   "packageManager": "pnpm@10.30.1"
 }
