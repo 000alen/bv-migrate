@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
           result = await generateObject({
             model: anthropic(model),
             schema: CourseStructureSchema,
+            maxTokens: 65536,
             messages: [
               {
                 role: "user",
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
                   },
                   {
                     type: "text",
-                    text: "Extract the complete course structure from this PDF. Follow the example patterns exactly.",
+                    text: "Extract the complete course structure from this PDF. Follow the example patterns exactly. This is a large document — extract ALL sections and ALL lessons with ALL content blocks. Do not truncate.",
                   },
                 ],
               },
