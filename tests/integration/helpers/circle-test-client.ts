@@ -59,18 +59,51 @@ export class CircleTestClient {
     return createLesson(this.token, sectionId, name, bodyHtml);
   }
 
-  // ── Read methods ─────────────────────────────────────────────────────────
+  // ── Read methods (with retry for eventual consistency) ─────────────────
 
-  getCourseSections(spaceId: number): Promise<CircleSection[]> {
-    return getCourseSections(this.token, spaceId);
+  async getCourseSections(spaceId: number): Promise<CircleSection[]> {
+    return this.retryRead(() => getCourseSections(this.token, spaceId));
   }
 
-  getCourseLessons(sectionId: number): Promise<CircleLesson[]> {
-    return getCourseLessons(this.token, sectionId);
+  async getCourseLessons(sectionId: number): Promise<CircleLesson[]> {
+    return this.retryRead(() => getCourseLessons(this.token, sectionId));
   }
 
-  getLessonDetail(lessonId: number): Promise<CircleLessonDetail> {
-    return getLessonDetail(this.token, lessonId);
+  async getLessonDetail(lessonId: number): Promise<CircleLessonDetail> {
+    return this.retryRead(() => getLessonDetail(this.token, lessonId));
+  }
+
+  /**
+   * Retry a read operation up to `maxAttempts` times with a delay between attempts.
+   * Handles Circle's eventual consistency: records may not be immediately
+   * readable after creation.
+   */
+  private async retryRead<T>(
+    fn: () => Promise<T>,
+    maxAttempts = 4,
+    delayMs = 1500
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const result = await fn();
+        // For arrays, retry if empty (eventual consistency may return [] briefly)
+        if (Array.isArray(result) && result.length === 0 && attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+        return result;
+      } catch (err) {
+        if (attempt === maxAttempts) throw err;
+        const msg = err instanceof Error ? err.message : "";
+        // "Missing record" is Circle's eventual consistency error
+        if (msg.includes("Missing record") || msg.includes("404")) {
+          await new Promise((r) => setTimeout(r, delayMs));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw new Error("retryRead: exhausted all attempts");
   }
 
   // ── Deletion ─────────────────────────────────────────────────────────────

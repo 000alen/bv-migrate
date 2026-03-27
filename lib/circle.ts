@@ -53,7 +53,7 @@ async function fetchWithRetry(
       continue;
     }
 
-    // Client error or final attempt — parse and throw
+    // Parse error body
     let message = `Circle API error ${res.status}: ${res.statusText}`;
     try {
       const body = await res.json();
@@ -63,6 +63,8 @@ async function fetchWithRetry(
       // Response body wasn't JSON — use the HTTP status message instead
       console.warn("Could not parse Circle error response body:", e);
     }
+
+    // Client error or final attempt — throw
     throw new Error(message);
   }
 

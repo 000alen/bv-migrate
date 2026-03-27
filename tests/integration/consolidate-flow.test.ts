@@ -54,6 +54,9 @@ describe("Consolidate flow", () => {
       "<p>Source 2 advanced content — unique marker: src2_advanced</p>"
     );
 
+    // Wait for Circle's eventual consistency before reading back
+    await new Promise((r) => setTimeout(r, 3000));
+
     // Run the consolidate route handler
     const body = {
       sources: [
@@ -78,6 +81,10 @@ describe("Consolidate flow", () => {
     events = await collectSSEEvents(response);
 
     const completeEvent = findEvent(events, "complete");
+    const errorEvent = findEvent(events, "error");
+    if (errorEvent) {
+      console.error("Consolidate beforeAll error:", JSON.stringify(errorEvent));
+    }
     if (completeEvent?.log) {
       log = completeEvent.log as ConsolidateLog;
       client.trackSpace(log.courseId);

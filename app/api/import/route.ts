@@ -76,6 +76,8 @@ export async function POST(req: NextRequest) {
         );
         partial.courseId = createdCourse.id;
         step++;
+        // Small delay after course creation (matches proven import-to-circle.py pattern)
+        await new Promise((r) => setTimeout(r, 500));
 
         // ── Pre-upload images ────────────────────────────────────────────────
         // signedIds maps placeholder index → signed_id for later HTML injection
@@ -122,6 +124,8 @@ export async function POST(req: NextRequest) {
             section.name
           );
           step++;
+          // Small delay after section creation (matches proven import-to-circle.py pattern)
+          await new Promise((r) => setTimeout(r, 300));
 
           const sectionLog: ImportLog["sections"][number] = {
             id: createdSection.id,
@@ -130,7 +134,11 @@ export async function POST(req: NextRequest) {
           };
           partial.sections.push(sectionLog);
 
-          for (const lesson of section.lessons) {
+          for (let li = 0; li < section.lessons.length; li++) {
+            const lesson = section.lessons[li];
+            // Small delay between lesson creations (matches proven import-to-circle.py pattern)
+            if (li > 0) await new Promise((r) => setTimeout(r, 300));
+
             send({
               type: "progress",
               message: `Creating lesson "${lesson.name}"...`,

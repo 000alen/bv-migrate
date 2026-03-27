@@ -45,6 +45,10 @@ describe("Import flow", () => {
     events = await collectSSEEvents(response);
 
     const completeEvent = findEvent(events, "complete");
+    const errorEvent = findEvent(events, "error");
+    if (errorEvent) {
+      console.error("Import beforeAll error:", JSON.stringify(errorEvent));
+    }
     if (completeEvent?.log) {
       log = completeEvent.log as ImportLog;
       client.trackSpace(log.courseId);

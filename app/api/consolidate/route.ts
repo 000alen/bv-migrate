@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
 
         for (const source of sources) {
           send({ type: "progress", message: `Reading "${source.label}"...`, step: 0, total: 1 });
+
           const sections = await getCourseSections(circleToken, source.spaceId);
           const sectData: SourceData["sections"] = [];
           for (const sec of sections) {
