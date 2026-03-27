@@ -14,13 +14,20 @@ import {
 // Re-export so existing imports from this path still work
 export type { ImportLog };
 
+interface ImageDatum {
+  filename: string;
+  dataUrl: string;
+}
+
 interface ImportRequest {
   course: CourseStructure;
   circleToken: string;
   spaceGroupId: number;
   geniallyUrls: Record<string, string>;
-  /** placeholder index → base64 data URL */
-  imageAssignments: Record<number, string>;
+  /** placeholder index → image name (not used for upload, kept for compat) */
+  imageAssignments?: Record<number, string>;
+  /** placeholder index → { filename, base64 dataUrl } — used for CDN upload */
+  imageData?: Record<number, ImageDatum>;
 }
 
 function md5Base64(buf: Buffer): string {
@@ -53,7 +60,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const body: ImportRequest = await req.json();
-        const { course, circleToken, spaceGroupId, geniallyUrls, imageAssignments } = body;
+        const { course, circleToken, spaceGroupId, geniallyUrls, imageData } = body;
 
         if (!course || !circleToken || !spaceGroupId) {
           send({ type: "error", message: "Missing required fields: course, circleToken, spaceGroupId", partial: null });
@@ -92,21 +99,19 @@ export async function POST(req: NextRequest) {
         // signedIds maps placeholder index → signed_id for later HTML injection
         const signedIds: Record<number, string> = {};
 
-        if (imageAssignments && Object.keys(imageAssignments).length > 0) {
-          for (const [idxStr, dataUrl] of Object.entries(imageAssignments)) {
+        if (imageData && Object.keys(imageData).length > 0) {
+          for (const [idxStr, datum] of Object.entries(imageData)) {
             const idx = parseInt(idxStr, 10);
-            const parsed = parseDataUrl(dataUrl);
+            const parsed = parseDataUrl(datum.dataUrl);
             if (!parsed) continue;
 
             const { buffer, contentType } = parsed;
             const checksum = md5Base64(buffer);
-            const ext = contentType.split("/")[1] ?? "bin";
-            const filename = `image-${idx}.${ext}`;
 
             try {
               const upload = await createDirectUpload(
                 circleToken,
-                filename,
+                datum.filename,
                 buffer.length,
                 contentType,
                 checksum
