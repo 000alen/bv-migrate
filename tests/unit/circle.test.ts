@@ -124,8 +124,8 @@ describe("fetchWithRetry (via createCourse)", () => {
       .mockResolvedValue(new Response("error", { status: 500 }));
 
     await expect(createCourse("tok", "X", "x", 1)).rejects.toThrow();
-    expect(mockFetch).toHaveBeenCalledTimes(3); // default maxAttempts
-  });
+    expect(mockFetch).toHaveBeenCalledTimes(4); // default maxAttempts
+  }, 120_000);
 
   it("respects Retry-After header on 429", async () => {
     const rateLimitResponse = new Response("rate limited", {
@@ -150,6 +150,36 @@ describe("fetchWithRetry (via createCourse)", () => {
     await expect(createCourse("tok", "X", "x", 1)).rejects.toThrow("Forbidden");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it("retries on 'Missing record. Please try again later' (422)", async () => {
+    const missingRecord = new Response(
+      JSON.stringify({ message: "Oops! Missing record. Please try again later." }),
+      { status: 422 }
+    );
+    mockFetch
+      .mockResolvedValueOnce(missingRecord)
+      .mockResolvedValueOnce(jsonResponse({ space: { id: 1, name: "X", slug: "x" } }));
+
+    const result = await createCourse("tok", "X", "x", 1);
+    expect(result.id).toBe(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws after max retries on persistent 'Missing record'", async () => {
+    const makeMissing = () => new Response(
+      JSON.stringify({ message: "Oops! Missing record. Please try again later." }),
+      { status: 422 }
+    );
+    mockFetch
+      .mockResolvedValueOnce(makeMissing())
+      .mockResolvedValueOnce(makeMissing())
+      .mockResolvedValueOnce(makeMissing())
+      .mockResolvedValueOnce(makeMissing())
+      .mockResolvedValueOnce(makeMissing());
+
+    await expect(createCourse("tok", "X", "x", 1)).rejects.toThrow("Missing record");
+    expect(mockFetch).toHaveBeenCalledTimes(4); // default maxAttempts
+  }, 120_000);
 });
 
 // ─── getCourseSections pagination ─────────────────────────────────────────────

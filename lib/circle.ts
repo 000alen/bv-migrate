@@ -25,7 +25,7 @@ async function fetchWithRetry(
   init: RequestInit,
   opts: RetryOptions = {}
 ): Promise<Response> {
-  const { maxAttempts = 3, baseDelayMs = 1000 } = opts;
+  const { maxAttempts = 4, baseDelayMs = 1000 } = opts;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const res = await fetch(url, init);
@@ -64,7 +64,16 @@ async function fetchWithRetry(
       console.warn("Could not parse Circle error response body:", e);
     }
 
-    // Client error or final attempt — throw
+    // "Missing record. Please try again later" — Circle's eventual consistency
+    // error on rapid writes. They literally tell us to retry, so we do.
+    if (message.includes("try again later") && attempt < maxAttempts) {
+      const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+      console.warn(`fetchWithRetry: "${message}" — retrying in ${delayMs}ms (attempt ${attempt}/${maxAttempts})`);
+      await new Promise((r) => setTimeout(r, delayMs));
+      continue;
+    }
+
+    // Other client error or final attempt — throw
     throw new Error(message);
   }
 
