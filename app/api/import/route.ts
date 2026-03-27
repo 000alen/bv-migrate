@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import crypto from "node:crypto";
 import type { ImportLog } from "@/lib/types";
+import { createSSEStream, sseResponse } from "@/lib/sse";
 import { CourseStructure } from "@/lib/schema";
 import { buildHtmlWithGenially } from "@/lib/html-builder";
 import {
@@ -10,9 +11,6 @@ import {
   createDirectUpload,
   uploadFile,
 } from "@/lib/circle";
-
-// Re-export so existing imports from this path still work
-export type { ImportLog };
 
 interface ImageDatum {
   filename: string;
@@ -41,14 +39,9 @@ function parseDataUrl(dataUrl: string): { buffer: Buffer; contentType: string } 
 }
 
 export async function POST(req: NextRequest) {
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data: object) => {
-        controller.enqueue(
-          new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
-        );
-      };
+  const { stream, send, close } = createSSEStream();
 
+  void (async () => {
       // Track what has been created so we can surface partial results on error
       const partial: ImportLog = {
         courseId: -1,
@@ -64,7 +57,6 @@ export async function POST(req: NextRequest) {
 
         if (!course || !circleToken || !spaceGroupId) {
           send({ type: "error", message: "Missing required fields: course, circleToken, spaceGroupId", partial: null });
-          controller.close();
           return;
         }
 
@@ -224,16 +216,9 @@ export async function POST(req: NextRequest) {
           partial: partial.courseId !== -1 ? partial : null,
         });
       } finally {
-        controller.close();
+        close();
       }
-    },
-  });
+  })();
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return sseResponse(stream);
 }

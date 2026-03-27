@@ -2,6 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { NextRequest } from "next/server";
 import { CourseStructureSchema } from "@/lib/schema";
+import { createSSEStream, sseResponse } from "@/lib/sse";
 
 export const maxDuration = 300;
 
@@ -70,19 +71,13 @@ RULES:
 - Output ONLY valid JSON. No markdown fences. No explanation. Just the JSON object.`;
 
 export async function POST(req: NextRequest) {
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data: object) => {
-        controller.enqueue(
-          new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
-        );
-      };
+  const { stream, send, close } = createSSEStream();
 
-      try {
+  void (async () => {
+    try {
         const anthropicKey = req.headers.get("x-anthropic-key") ?? "";
         if (!anthropicKey) {
           send({ type: "error", error: "Missing x-anthropic-key header" });
-          controller.close();
           return;
         }
 
@@ -93,7 +88,6 @@ export async function POST(req: NextRequest) {
 
         if (!pdfFile) {
           send({ type: "error", error: "Missing pdf file in form data" });
-          controller.close();
           return;
         }
 
@@ -153,7 +147,6 @@ export async function POST(req: NextRequest) {
             type: "error",
             error: `Extraction produced invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`,
           });
-          controller.close();
           return;
         }
 
@@ -166,7 +159,6 @@ export async function POST(req: NextRequest) {
             error: "Extraction produced invalid structure",
             details: parsed.error.flatten(),
           });
-          controller.close();
           return;
         }
 
@@ -199,26 +191,17 @@ export async function POST(req: NextRequest) {
             error: "Extracted content failed validation",
             details: validationErrors,
           });
-          controller.close();
           return;
         }
 
         send({ type: "complete", course });
-      } catch (error) {
-        console.error("Extract error:", error);
-        const message = error instanceof Error ? error.message : String(error);
-        send({ type: "error", error: message });
-      } finally {
-        controller.close();
-      }
-    },
-  });
+    } catch (error) {
+      console.error("Extract error:", error);
+      send({ type: "error", error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      close();
+    }
+  })();
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return sseResponse(stream);
 }

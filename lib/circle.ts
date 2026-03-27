@@ -273,17 +273,3 @@ export async function uploadFile(
   }
 }
 
-export async function uploadToPresignedUrl(
-  url: string,
-  headers: Record<string, string>,
-  data: ArrayBuffer
-): Promise<void> {
-  const res = await fetch(url, { method: "PUT", headers, body: data });
-  if (!res.ok) {
-    throw new Error(`File upload failed: ${res.status} ${res.statusText}`);
-  }
-}
-
-// Aliases for alternate naming conventions
-export const getSpaceSections = getCourseSections;
-export const getSectionLessons = getCourseLessons;

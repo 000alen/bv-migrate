@@ -1,29 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { ImportHistory } from "@/lib/types";
+import type { ImportHistory, ConsolidateLog } from "@/lib/types";
+import { consumeSSE } from "@/lib/sse";
 
 interface ConsolidateSource {
   spaceId: number;
   label: string;
-}
-
-interface ConsolidateLog {
-  courseId: number;
-  courseName: string;
-  sections: Array<{
-    id: number;
-    name: string;
-    lessons: Array<{ id: number; name: string }>;
-  }>;
-}
-
-interface ConsolidateProgressEvent {
-  type: string;
-  message?: string;
-  step?: number;
-  total?: number;
-  log?: ConsolidateLog;
 }
 
 interface ConsolidateStepProps {
@@ -47,7 +30,7 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
   const [manualEntries, setManualEntries] = useState<string>(""); // "spaceId:label" per line
   const [combinedName, setCombinedName] = useState("Foundation Year");
   const [status, setStatus] = useState<string>("");
-  const [progress, setProgress] = useState<ConsolidateProgressEvent[]>([]);
+  const [progress, setProgress] = useState<{ type: string; message?: string; step?: number; total?: number }[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [resultLog, setResultLog] = useState<ConsolidateLog | null>(null);
@@ -137,37 +120,22 @@ export function ConsolidateStep({ circleToken, spaceGroupId, onComplete, onError
       });
 
       if (!res.ok) throw new Error("Consolidation request failed");
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream");
-      const dec = new TextDecoder();
-      let buf = "";
-      for (;;) {
-        const { done: streamDone, value } = await reader.read();
-        if (streamDone) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6)) as ConsolidateProgressEvent;
-            if (data.type === "progress") {
-              setProgress((p) => [...p, data]);
-              setStatus(data.message ?? "");
-            } else if (data.type === "complete" && data.log) {
-              setDone(true);
-              setResultLog(data.log);
-              onComplete(data.log);
-            } else if (data.type === "error") {
-              onError(data.message ?? "Unknown error");
-              setRunning(false);
-              return;
-            }
-          } catch (e) {
-            console.warn("SSE parse error:", e);
-          }
-        }
-      }
+      await consumeSSE(res, {
+        onProgress(message, raw) {
+          setProgress((p) => [...p, raw as { type: string; message?: string; step?: number; total?: number }]);
+          setStatus(message);
+        },
+        onComplete(data) {
+          const log = data.log as ConsolidateLog;
+          setDone(true);
+          setResultLog(log);
+          onComplete(log);
+        },
+        onError(message) {
+          onError(message);
+          setRunning(false);
+        },
+      });
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
     } finally {

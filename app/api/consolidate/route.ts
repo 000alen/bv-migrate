@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { createSSEStream, sseResponse } from "@/lib/sse";
 import {
   createCourse,
   createSection,
@@ -22,21 +23,16 @@ interface ConsolidateRequest {
 }
 
 export async function POST(req: NextRequest) {
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data: object) => {
-        controller.enqueue(
-          new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`)
-        );
-      };
+  const { stream, send, close } = createSSEStream();
 
-      try {
+  void (async () => {
+    try {
         const body: ConsolidateRequest = await req.json();
         const { sources, combinedName, combinedSlug, circleToken, spaceGroupId } = body;
 
         if (!sources?.length || !combinedName || !circleToken || !spaceGroupId) {
           send({ type: "error", message: "Missing required fields" });
-          controller.close();
+          close();
           return;
         }
 
@@ -124,16 +120,9 @@ export async function POST(req: NextRequest) {
         const message = error instanceof Error ? error.message : String(error);
         send({ type: "error", message });
       } finally {
-        controller.close();
+        close();
       }
-    },
-  });
+  })();
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  return sseResponse(stream);
 }

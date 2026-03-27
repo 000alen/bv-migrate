@@ -42,6 +42,16 @@ export interface ImportHistory {
 /** Alias for ImportHistory — used in consolidation UI */
 export type ImportHistoryEntry = ImportHistory;
 
+export interface ConsolidateLog {
+  courseId: number;
+  courseName: string;
+  sections: Array<{
+    id: number;
+    name: string;
+    lessons: Array<{ id: number; name: string }>;
+  }>;
+}
+
 export interface PartialImportCreated {
   courseId: number | null;
   sections: Array<{
