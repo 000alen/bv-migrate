@@ -10,7 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.config.integration.ts",
-    "test:sweep": "vitest run --config vitest.config.integration.ts tests/integration/sweep.test.ts"
+    "test:sweep": "vitest run --config vitest.config.integration.ts tests/integration/sweep.test.ts",
+    "docs:dev": "cd docs && npm start",
+    "docs:build": "cd docs && npm run build"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
