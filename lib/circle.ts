@@ -1,6 +1,6 @@
-const BASE_URL = "https://app.circle.so/api/admin/v2";
+export const BASE_URL = "https://app.circle.so/api/admin/v2";
 
-function authHeaders(token: string, method: "GET" | "POST" | "PUT" | "DELETE" = "POST"): Record<string, string> {
+export function authHeaders(token: string, method: "GET" | "POST" | "PUT" | "DELETE" = "POST"): Record<string, string> {
   const headers: Record<string, string> = {
     "User-Agent": "bv-migrate/1.0 (beVisioneers Content Constructors)",
     Accept: "application/json",

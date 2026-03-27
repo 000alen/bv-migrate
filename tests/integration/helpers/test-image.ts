@@ -5,7 +5,7 @@
  * Returns both a Buffer and a base64 data URL.
  */
 
-import crypto from "node:crypto";
+import { md5Base64 } from "@/lib/server-utils";
 
 function crc32(buf: Buffer): number {
   // CRC-32 per PNG spec (ISO 3309 / ITU-T V.42)
@@ -70,9 +70,5 @@ export function testPngDataUrl(): string {
   return `data:image/png;base64,${TEST_PNG.toString("base64")}`;
 }
 
-/**
- * MD5 checksum in base64 (required by Circle's direct_uploads API).
- */
-export function md5Base64(buf: Buffer): string {
-  return crypto.createHash("md5").update(buf).digest("base64");
-}
+// Re-export from lib/server-utils for test convenience
+export { md5Base64 } from "@/lib/server-utils";

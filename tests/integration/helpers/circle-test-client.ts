@@ -12,14 +12,14 @@ import {
   getCourseSections,
   getCourseLessons,
   getLessonDetail,
+  BASE_URL,
+  authHeaders,
   CircleCourse,
   CircleSection,
   CircleLesson,
   CircleLessonDetail,
 } from "@/lib/circle";
 import { TEST_PREFIX } from "../config";
-
-const BASE_URL = "https://app.circle.so/api/admin/v2";
 
 export class CircleTestClient {
   private trackedSpaceIds: number[] = [];
@@ -82,11 +82,7 @@ export class CircleTestClient {
   async deleteSpace(spaceId: number): Promise<void> {
     const res = await fetch(`${BASE_URL}/spaces/${spaceId}`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Token ${this.token}`,
-        Accept: "application/json",
-        "User-Agent": "bv-migrate/1.0 (integration tests)",
-      },
+      headers: authHeaders(this.token, "DELETE"),
     });
     // 404 means already deleted — that's fine
     if (!res.ok && res.status !== 404) {
@@ -144,11 +140,7 @@ export class CircleTestClient {
         `${BASE_URL}/spaces?space_group_id=${this.spaceGroupId}&page=${page}&per_page=100`,
         {
           method: "GET",
-          headers: {
-            Authorization: `Token ${this.token}`,
-            Accept: "application/json",
-            "User-Agent": "bv-migrate/1.0 (integration tests)",
-          },
+          headers: authHeaders(this.token, "GET"),
         }
       );
       if (!res.ok) break;

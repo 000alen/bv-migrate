@@ -2,6 +2,7 @@
 
 import { useReducer } from "react";
 import type { CourseStructure } from "@/lib/schema";
+import { collectBlocks } from "@/lib/utils";
 import type {
   ContentType,
   ImportLog,
@@ -107,15 +108,11 @@ export type Action =
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 export function hasImages(course: CourseStructure) {
-  return course.sections.some((s) =>
-    s.lessons.some((l) => l.blocks.some((b) => b.type === "image_placeholder"))
-  );
+  return collectBlocks(course, "image_placeholder").length > 0;
 }
 
 export function hasGenially(course: CourseStructure) {
-  return course.sections.some((s) =>
-    s.lessons.some((l) => l.blocks.some((b) => b.type === "genially_placeholder"))
-  );
+  return collectBlocks(course, "genially_placeholder").length > 0;
 }
 
 function visit(

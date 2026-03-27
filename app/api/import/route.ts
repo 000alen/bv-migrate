@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import crypto from "node:crypto";
 import type { ImportLog } from "@/lib/types";
 import { createSSEStream, sseResponse } from "@/lib/sse";
 import { CourseStructure } from "@/lib/schema";
 import { buildHtmlWithGenially } from "@/lib/html-builder";
+import { md5Base64, parseDataUrl } from "@/lib/server-utils";
 import {
   createCourse,
   createSection,
@@ -26,16 +26,6 @@ interface ImportRequest {
   imageAssignments?: Record<number, string>;
   /** placeholder index → { filename, base64 dataUrl } — used for CDN upload */
   imageData?: Record<number, ImageDatum>;
-}
-
-function md5Base64(buf: Buffer): string {
-  return crypto.createHash("md5").update(buf).digest("base64");
-}
-
-function parseDataUrl(dataUrl: string): { buffer: Buffer; contentType: string } | null {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  return { contentType: match[1], buffer: Buffer.from(match[2], "base64") };
 }
 
 export async function POST(req: NextRequest) {
