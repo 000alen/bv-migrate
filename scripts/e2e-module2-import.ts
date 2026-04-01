@@ -139,11 +139,11 @@ async function main(): Promise<void> {
   console.log(`[e2e] PDF: ${pdfPath}`);
   if (useCerebras) {
     console.log(
-      "[e2e] extract: text-first pdf-parse → Cerebras (set BV_CEREBRAS_MODEL or x-model via env BV_CEREBRAS_MODEL)"
+      "[e2e] extract: text-first (local) → Cerebras (set BV_CEREBRAS_MODEL or x-model via env BV_CEREBRAS_MODEL)"
     );
   } else {
     console.log(
-      `[e2e] extract mode: ${useNativePdf ? "native-pdf (Claude reads PDF bytes)" : "text-first (pdf-parse → Claude)"}`
+      `[e2e] extract mode: ${useNativePdf ? "native-pdf (Claude reads PDF bytes)" : "text-first (local → Claude)"}`
     );
   }
   const buf = readFileSync(pdfPath);
