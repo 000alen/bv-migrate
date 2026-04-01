@@ -1,4 +1,27 @@
 /**
+ * pdf.js's worker bundle references DOMMatrix / ImageData / Path2D at load time.
+ * On Vercel serverless these browser globals don't exist and the optional
+ * @napi-rs/canvas polyfill isn't available. Stub them before importing the worker
+ * — text extraction never touches rendering, so empty classes are safe.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const g = globalThis as any;
+if (typeof g.DOMMatrix === "undefined") {
+  g.DOMMatrix = class DOMMatrix {
+    constructor() { return Object.create(DOMMatrix.prototype); }
+  };
+}
+if (typeof g.ImageData === "undefined") {
+  g.ImageData = class ImageData {
+    width = 0; height = 0; data = new Uint8ClampedArray(0);
+    constructor(w: number, h: number) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); }
+  };
+}
+if (typeof g.Path2D === "undefined") {
+  g.Path2D = class Path2D {};
+}
+
+/**
  * Pre-load the pdf.js worker so the fake-worker setup never calls the
  * dynamic `import(this.workerSrc)` that Turbopack rewrites into a broken path.
  *
@@ -7,8 +30,7 @@
  */
 // @ts-expect-error -- no .d.ts for the worker bundle; only needs WorkerMessageHandler export
 import * as pdfjsWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(globalThis as any).pdfjsWorker ??= pdfjsWorker;
+g.pdfjsWorker ??= pdfjsWorker;
 
 import { PDFParse } from "pdf-parse";
 
