@@ -12,11 +12,15 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { CircleTestClient } from "./helpers/circle-test-client";
-import { CIRCLE_TOKEN, SPACE_GROUP_ID, TEST_PREFIX } from "./config";
+import {
+  hasCircleIntegrationEnv,
+  getCircleIntegrationEnv,
+  TEST_PREFIX,
+} from "./config";
 
 const TIMESTAMP = Date.now();
 
-describe("Sweep", () => {
+describe.skipIf(!hasCircleIntegrationEnv())("Sweep", () => {
   // sweepClient is the one running sweep()
   let sweepClient: CircleTestClient;
   // space IDs created outside sweepClient's registry (untracked)
@@ -24,6 +28,7 @@ describe("Sweep", () => {
   let space2Id: number;
 
   beforeAll(async () => {
+    const { CIRCLE_TOKEN, SPACE_GROUP_ID } = getCircleIntegrationEnv();
     sweepClient = new CircleTestClient(CIRCLE_TOKEN, SPACE_GROUP_ID);
 
     // Create 2 test spaces using a fresh client so they are NOT in

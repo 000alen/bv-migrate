@@ -10,12 +10,16 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/consolidate/route";
 import { CircleTestClient } from "./helpers/circle-test-client";
 import { collectSSEEvents, findEvent, filterEvents } from "./helpers/sse-utils";
-import { CIRCLE_TOKEN, SPACE_GROUP_ID, TEST_PREFIX } from "./config";
+import {
+  hasCircleIntegrationEnv,
+  getCircleIntegrationEnv,
+  TEST_PREFIX,
+} from "./config";
 import type { ConsolidateLog } from "@/lib/types";
 
 const TIMESTAMP = Date.now();
 
-describe("Consolidate flow", () => {
+describe.skipIf(!hasCircleIntegrationEnv())("Consolidate flow", () => {
   let client: CircleTestClient;
   let source1Id: number;
   let source2Id: number;
@@ -26,6 +30,7 @@ describe("Consolidate flow", () => {
   const SOURCE_2_LABEL = "Source Module 2";
 
   beforeAll(async () => {
+    const { CIRCLE_TOKEN, SPACE_GROUP_ID } = getCircleIntegrationEnv();
     client = new CircleTestClient(CIRCLE_TOKEN, SPACE_GROUP_ID);
 
     // Create source course 1 with 1 section + 1 lesson

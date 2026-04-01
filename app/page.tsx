@@ -31,11 +31,14 @@ export default function Page() {
 
   // Load settings from localStorage
   useEffect(() => {
+    const lp = localStorage.getItem("bv_llm_provider");
     dispatch({
       type: "INIT",
       circleToken: localStorage.getItem("bv_circle_token") ?? "",
       anthropicKey: localStorage.getItem("bv_anthropic_key") ?? "",
       spaceGroupId: localStorage.getItem("bv_space_group_id") ?? "",
+      llmProvider: lp === "anthropic" ? "anthropic" : "cerebras",
+      cerebrasKey: localStorage.getItem("bv_cerebras_key") ?? "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -60,8 +63,18 @@ export default function Page() {
   const totalLessons = s.courseStructure?.sections.reduce((n, sec) => n + sec.lessons.length, 0) ?? 0;
 
   function requireKeys(isRiseZip: boolean, then: () => void) {
-    if (!isRiseZip && !s.anthropicKey) {
-      dispatch({ type: "SHOW_KEY_NUDGE", message: "Hold on — you need to set up your API keys first! Click the ⚙️ in the top right." });
+    if (isRiseZip) {
+      then();
+      return;
+    }
+    const needAnthropic = s.llmProvider === "anthropic" && !s.anthropicKey;
+    const needCerebras = s.llmProvider === "cerebras" && !s.cerebrasKey;
+    if (needAnthropic || needCerebras) {
+      dispatch({
+        type: "SHOW_KEY_NUDGE",
+        message:
+          "Hold on — set your Cerebras API key in Settings (⚙️), or switch to Anthropic if you use that provider.",
+      });
       dispatch({ type: "OPEN_SETTINGS" });
       return;
     }
@@ -196,12 +209,17 @@ export default function Page() {
         {/* Step 6: Image ZIP upload */}
         {seen("image-upload") && (
           <>
-            <BobMessage message="Now I need the images. Drop your ZIP folder here 📁" />
-            {seen("image-matching") ? (
-              <UserBubble>📁 Found {s.zipImages.length} image{s.zipImages.length !== 1 ? "s" : ""} in the ZIP</UserBubble>
+            <BobMessage message="Now I need the images. Drop your ZIP folder here — or skip if you don't have them yet 📁" />
+            {seen("image-matching") || s.imageMatchingConfirmed ? (
+              s.zipImages.length > 0 ? (
+                <UserBubble>📁 Found {s.zipImages.length} image{s.zipImages.length !== 1 ? "s" : ""} in the ZIP</UserBubble>
+              ) : (
+                <UserBubble>Skipping images — I'll add them later</UserBubble>
+              )
             ) : (
               <ImageUploadStep
                 onImages={(imgs) => dispatch({ type: "SET_ZIP_IMAGES", images: imgs })}
+                onSkip={() => dispatch({ type: "SKIP_IMAGES" })}
               />
             )}
           </>
@@ -335,10 +353,14 @@ export default function Page() {
         open={s.settingsOpen}
         circleToken={s.circleToken}
         anthropicKey={s.anthropicKey}
+        llmProvider={s.llmProvider}
+        cerebrasKey={s.cerebrasKey}
         spaceGroupId={s.spaceGroupId}
         onClose={() => dispatch({ type: "CLOSE_SETTINGS" })}
         onCircleToken={(v) => dispatch({ type: "SET_CIRCLE_TOKEN", value: v })}
         onAnthropicKey={(v) => dispatch({ type: "SET_ANTHROPIC_KEY", value: v })}
+        onLlmProvider={(v) => dispatch({ type: "SET_LLM_PROVIDER", value: v })}
+        onCerebrasKey={(v) => dispatch({ type: "SET_CEREBRAS_KEY", value: v })}
         onSpaceGroupId={(v) => dispatch({ type: "SET_SPACE_GROUP_ID", value: v })}
       />
     </div>

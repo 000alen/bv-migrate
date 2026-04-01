@@ -11,11 +11,14 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.config.integration.ts",
     "test:sweep": "vitest run --config vitest.config.integration.ts tests/integration/sweep.test.ts",
+    "e2e:module2": "tsx scripts/e2e-module2-import.ts",
+    "e2e:module2:anthropic": "E2E_LLM=anthropic tsx scripts/e2e-module2-import.ts",
     "docs:dev": "cd docs && npm start",
     "docs:build": "cd docs && npm run build"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.2.12",
+    "@ai-sdk/anthropic": "^3.0.0",
+    "@ai-sdk/cerebras": "^2.0.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -27,16 +30,18 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-toast": "^1.2.14",
-    "ai": "^4.3.16",
+    "ai": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jszip": "^3.10.1",
     "lucide-react": "^0.511.0",
     "next": "16.2.1",
+    "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "5.4.296",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.2.0",
-    "zod": "^3.24.2"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.5",
@@ -50,6 +55,7 @@
     "eslint-config-next": "^15.5.14",
     "jsdom": "^29.0.1",
     "tailwindcss": "^4.1.5",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.2"
   },

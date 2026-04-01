@@ -11,12 +11,15 @@ import { POST } from "@/app/api/import/route";
 import { CircleTestClient } from "./helpers/circle-test-client";
 import { makeTestCourse, expectedLesson1Html } from "./helpers/test-course";
 import { collectSSEEvents, findEvent, filterEvents } from "./helpers/sse-utils";
-import { CIRCLE_TOKEN, SPACE_GROUP_ID } from "./config";
+import {
+  hasCircleIntegrationEnv,
+  getCircleIntegrationEnv,
+} from "./config";
 import type { ImportLog } from "@/lib/types";
 
 const TIMESTAMP = Date.now();
 
-describe("Import flow", () => {
+describe.skipIf(!hasCircleIntegrationEnv())("Import flow", () => {
   let client: CircleTestClient;
   let events: Array<Record<string, unknown>>;
   let log: ImportLog;
@@ -24,6 +27,7 @@ describe("Import flow", () => {
   const course = makeTestCourse(TIMESTAMP);
 
   beforeAll(async () => {
+    const { CIRCLE_TOKEN, SPACE_GROUP_ID } = getCircleIntegrationEnv();
     client = new CircleTestClient(CIRCLE_TOKEN, SPACE_GROUP_ID);
 
     const body = {

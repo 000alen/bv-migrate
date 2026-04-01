@@ -7,20 +7,25 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { CircleTestClient } from "./helpers/circle-test-client";
-import { CIRCLE_TOKEN, SPACE_GROUP_ID, TEST_PREFIX } from "./config";
+import {
+  hasCircleIntegrationEnv,
+  getCircleIntegrationEnv,
+  TEST_PREFIX,
+} from "./config";
 
 const TIMESTAMP = Date.now();
 const SPACE_NAME = `${TEST_PREFIX}crud_${TIMESTAMP}`;
 const SPACE_SLUG = `test-bv-migrate-crud-${TIMESTAMP}`;
 const LESSON_HTML = "<p><strong>Hello from integration test</strong></p><p>Unique marker: crud_lesson_content</p>";
 
-describe("Circle CRUD", () => {
+describe.skipIf(!hasCircleIntegrationEnv())("Circle CRUD", () => {
   let client: CircleTestClient;
   let spaceId: number;
   let sectionId: number;
   let lessonId: number;
 
   beforeAll(() => {
+    const { CIRCLE_TOKEN, SPACE_GROUP_ID } = getCircleIntegrationEnv();
     client = new CircleTestClient(CIRCLE_TOKEN, SPACE_GROUP_ID);
   });
 

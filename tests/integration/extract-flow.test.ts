@@ -12,14 +12,19 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/extract/route";
 import { CourseStructureSchema, type CourseStructure } from "@/lib/schema";
 import { collectSSEEvents, findEvent, filterEvents } from "./helpers/sse-utils";
-import { ANTHROPIC_KEY } from "./config";
+import {
+  hasAnthropicExtractEnv,
+  getAnthropicExtractKey,
+} from "./config";
 import { makePdfFile } from "./helpers/test-pdf";
 
-describe("Extract flow", () => {
+describe.skipIf(!hasAnthropicExtractEnv())("Extract flow", () => {
   let events: Array<Record<string, unknown>>;
   let course: CourseStructure;
+  let anthropicKey: string;
 
   beforeAll(async () => {
+    anthropicKey = getAnthropicExtractKey();
     const pdf = makePdfFile("test-module-1.pdf");
 
     const formData = new FormData();
@@ -27,7 +32,10 @@ describe("Extract flow", () => {
 
     const req = new NextRequest("http://localhost/api/extract", {
       method: "POST",
-      headers: { "x-anthropic-key": ANTHROPIC_KEY },
+      headers: {
+        "x-llm-provider": "anthropic",
+        "x-anthropic-key": anthropicKey,
+      },
       body: formData,
     });
 
@@ -145,7 +153,7 @@ describe("Extract flow", () => {
     const errorEvents = await collectSSEEvents(response);
     const errorEvent = findEvent(errorEvents, "error");
     expect(errorEvent).toBeDefined();
-    expect(errorEvent!.message).toContain("x-anthropic-key");
+    expect(String(errorEvent!.message)).toMatch(/Cerebras|x-cerebras|CEREBRAS_API_KEY/i);
   });
 
   it("rejects request with missing PDF", async () => {
@@ -154,7 +162,10 @@ describe("Extract flow", () => {
 
     const req = new NextRequest("http://localhost/api/extract", {
       method: "POST",
-      headers: { "x-anthropic-key": ANTHROPIC_KEY },
+      headers: {
+        "x-llm-provider": "anthropic",
+        "x-anthropic-key": anthropicKey,
+      },
       body: formData,
     });
 

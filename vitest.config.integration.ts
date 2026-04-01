@@ -11,8 +11,9 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/integration/**/*.test.ts"],
-    testTimeout: 180_000,
-    hookTimeout: 180_000,
+    // Module 2 PDF extract + Circle import can exceed 3 minutes
+    testTimeout: 600_000,
+    hookTimeout: 60_000,
     fileParallelism: false, // sequential — avoid Circle rate limits
   },
 });

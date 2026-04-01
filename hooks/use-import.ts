@@ -41,6 +41,9 @@ export function useImport(state: AppState, dispatch: Dispatch<Action>): void {
         if (!res.ok) throw new Error("Import request failed");
         await consumeSSE(res, {
           onProgress(_message, raw) {
+            if (process.env.NODE_ENV === "development") {
+              console.log("[import client] progress", raw);
+            }
             dispatch({ type: "IMPORT_PROGRESS", event: raw as unknown as ImportProgressEvent });
           },
           onComplete(data) {
@@ -67,9 +70,14 @@ export function useImport(state: AppState, dispatch: Dispatch<Action>): void {
             dispatch({ type: "IMPORT_COMPLETE", log });
           },
           onError(message, raw) {
+            console.error("[import client] error", message, raw);
+            let full = message;
+            if (raw && typeof raw === "object" && raw.partial != null) {
+              full += `\n\nPartial log:\n${JSON.stringify(raw.partial, null, 2)}`;
+            }
             dispatch({
               type: "IMPORT_ERROR",
-              error: message,
+              error: full,
               partial: (raw.partial as ImportLog | null | undefined) ?? null,
             });
           },

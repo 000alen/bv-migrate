@@ -13,7 +13,9 @@ export function ExtractionStep({ status, error, onRetry }: ExtractionStepProps) 
     return (
       <div className="animate-fade-in rounded-xl border border-red-200 bg-red-50 p-5">
         <p className="text-sm font-medium text-red-700 mb-1">Extraction failed</p>
-        <p className="text-xs text-red-600 mb-3">{error}</p>
+        <pre className="text-xs text-red-600 mb-3 whitespace-pre-wrap break-words max-h-64 overflow-y-auto font-sans">
+          {error}
+        </pre>
         <button
           onClick={onRetry}
           className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 transition-colors"

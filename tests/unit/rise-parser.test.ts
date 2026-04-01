@@ -4,9 +4,11 @@ import * as path from "path";
 import { parseRiseExport } from "@/lib/rise-parser";
 import { CourseStructureSchema } from "@/lib/schema";
 
+/** Gitignored large binary — add `tests/fixtures/Milestone_1_C3.zip` locally to run these tests. */
 const FIXTURE = path.resolve(__dirname, "../fixtures/Milestone_1_C3.zip");
+const HAS_FIXTURE = fs.existsSync(FIXTURE);
 
-describe("parseRiseExport", () => {
+describe.skipIf(!HAS_FIXTURE)("parseRiseExport (Milestone_1_C3 fixture)", () => {
   it("parses the Milestone_1_C3 fixture without throwing", async () => {
     const buf = fs.readFileSync(FIXTURE);
     const result = await parseRiseExport(buf);

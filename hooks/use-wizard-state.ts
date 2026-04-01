@@ -9,11 +9,12 @@ import type {
   ImportLog,
   ImportProgressEvent,
   ZipImage,
-  ImportHistory,
   ConsolidateLog,
 } from "@/lib/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type LlmProvider = "anthropic" | "cerebras";
 
 export type Phase =
   | "greeting"
@@ -38,6 +39,9 @@ export interface AppState {
 
   circleToken: string;
   anthropicKey: string;
+  /** Default: cerebras (local PDF text + Cerebras JSON). Anthropic optional (e.g. native PDF). */
+  llmProvider: LlmProvider;
+  cerebrasKey: string;
   spaceGroupId: string;
 
   contentType: ContentType | null;
@@ -73,11 +77,20 @@ export interface AppState {
 }
 
 export type Action =
-  | { type: "INIT"; circleToken: string; anthropicKey: string; spaceGroupId: string }
+  | {
+      type: "INIT";
+      circleToken: string;
+      anthropicKey: string;
+      spaceGroupId: string;
+      llmProvider: LlmProvider;
+      cerebrasKey: string;
+    }
   | { type: "OPEN_SETTINGS" }
   | { type: "CLOSE_SETTINGS" }
   | { type: "SET_CIRCLE_TOKEN"; value: string }
   | { type: "SET_ANTHROPIC_KEY"; value: string }
+  | { type: "SET_LLM_PROVIDER"; value: LlmProvider }
+  | { type: "SET_CEREBRAS_KEY"; value: string }
   | { type: "SET_SPACE_GROUP_ID"; value: string }
   | { type: "SHOW_KEY_NUDGE"; message: string }
   | { type: "ADVANCE_FROM_GREETING" }
@@ -92,6 +105,7 @@ export type Action =
   | { type: "UPDATE_COURSE"; course: CourseStructure }
   | { type: "CONFIRM_EXTRACTION" }
   | { type: "SET_ZIP_IMAGES"; images: ZipImage[] }
+  | { type: "SKIP_IMAGES" }
   | { type: "UPDATE_IMAGE_ASSIGNMENTS"; assignments: Record<number, string> }
   | { type: "CONFIRM_IMAGE_MATCHING" }
   | { type: "UPDATE_GENIALLY_URLS"; urls: Record<string, string> }
@@ -139,6 +153,8 @@ const initial: AppState = {
   keyNudge: null,
   circleToken: "",
   anthropicKey: "",
+  llmProvider: "cerebras",
+  cerebrasKey: "",
   spaceGroupId: "",
   contentType: null,
   contentNumber: null,
@@ -172,7 +188,14 @@ const initial: AppState = {
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case "INIT":
-      return { ...s, circleToken: a.circleToken, anthropicKey: a.anthropicKey, spaceGroupId: a.spaceGroupId };
+      return {
+        ...s,
+        circleToken: a.circleToken,
+        anthropicKey: a.anthropicKey,
+        spaceGroupId: a.spaceGroupId,
+        llmProvider: a.llmProvider,
+        cerebrasKey: a.cerebrasKey,
+      };
     case "OPEN_SETTINGS":
       return { ...s, settingsOpen: true };
     case "CLOSE_SETTINGS":
@@ -181,6 +204,10 @@ function reducer(s: AppState, a: Action): AppState {
       return { ...s, circleToken: a.value };
     case "SET_ANTHROPIC_KEY":
       return { ...s, anthropicKey: a.value };
+    case "SET_LLM_PROVIDER":
+      return { ...s, llmProvider: a.value };
+    case "SET_CEREBRAS_KEY":
+      return { ...s, cerebrasKey: a.value };
     case "SET_SPACE_GROUP_ID":
       return { ...s, spaceGroupId: a.value };
     case "SHOW_KEY_NUDGE":
@@ -249,6 +276,11 @@ function reducer(s: AppState, a: Action): AppState {
     }
     case "SET_ZIP_IMAGES":
       return { ...s, zipImages: a.images, ...visit(s, "image-matching") };
+    case "SKIP_IMAGES": {
+      const c = s.courseStructure!;
+      const next = hasGenially(c) ? "genially-links" : "importing";
+      return { ...s, imageMatchingConfirmed: true, ...visit(s, next) };
+    }
     case "UPDATE_IMAGE_ASSIGNMENTS":
       return { ...s, imageAssignments: a.assignments };
     case "CONFIRM_IMAGE_MATCHING": {

@@ -16,7 +16,11 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/import/route";
 import { CircleTestClient } from "./helpers/circle-test-client";
 import { collectSSEEvents, findEvent } from "./helpers/sse-utils";
-import { CIRCLE_TOKEN, SPACE_GROUP_ID, TEST_PREFIX } from "./config";
+import {
+  hasCircleIntegrationEnv,
+  getCircleIntegrationEnv,
+  TEST_PREFIX,
+} from "./config";
 import { TEST_PNG, testPngDataUrl, md5Base64 } from "./helpers/test-image";
 import {
   createDirectUpload,
@@ -25,6 +29,18 @@ import {
 import type { ImportLog } from "@/lib/types";
 
 const TIMESTAMP = Date.now();
+
+describe.skipIf(!hasCircleIntegrationEnv())(
+  "Circle image + direct upload (integration)",
+  () => {
+    let CIRCLE_TOKEN: string;
+    let SPACE_GROUP_ID: number;
+
+    beforeAll(() => {
+      const e = getCircleIntegrationEnv();
+      CIRCLE_TOKEN = e.CIRCLE_TOKEN;
+      SPACE_GROUP_ID = e.SPACE_GROUP_ID;
+    });
 
 // ── Direct upload API (isolated) ──────────────────────────────────────────
 
@@ -264,4 +280,5 @@ describe("Import flow with image upload", () => {
     }
     expect(foreignMatches).toBe(0);
   });
+});
 });

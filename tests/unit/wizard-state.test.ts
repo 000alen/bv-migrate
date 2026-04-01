@@ -11,7 +11,14 @@ function reduce(actions: Action[]): AppState {
   return result.current[0];
 }
 
-const INIT: Action = { type: "INIT", circleToken: "tok", anthropicKey: "key", spaceGroupId: "123" };
+const INIT: Action = {
+  type: "INIT",
+  circleToken: "tok",
+  anthropicKey: "key",
+  spaceGroupId: "123",
+  llmProvider: "cerebras",
+  cerebrasKey: "",
+};
 
 const COURSE_WITH_IMAGES: CourseStructure = {
   name: "Test", slug: "test",

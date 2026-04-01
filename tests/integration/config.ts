@@ -1,33 +1,50 @@
 /**
  * Integration test configuration.
- * Reads required env vars and throws a clear error if any are missing.
- * Set these before running: CIRCLE_TOKEN, ANTHROPIC_KEY, SPACE_GROUP_ID
+ * Does not throw on import — use `has*` helpers with `describe.skipIf` so
+ * `pnpm test:integration` passes when credentials are absent (e.g. CI).
+ *
+ * With credentials:
+ *   CIRCLE_TOKEN=... ANTHROPIC_KEY=... SPACE_GROUP_ID=... pnpm test:integration
  */
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `Integration tests require the ${name} environment variable to be set.\n` +
-        `Example: ${name}=your_value pnpm test:integration`
-    );
-  }
-  return value;
+export const TEST_PREFIX = "__test_bv_migrate_";
+
+export function hasCircleIntegrationEnv(): boolean {
+  const token = process.env.CIRCLE_TOKEN?.trim();
+  const raw = process.env.SPACE_GROUP_ID?.trim();
+  if (!token || !raw) return false;
+  const n = parseInt(raw, 10);
+  return !isNaN(n) && n > 0;
 }
 
-export const CIRCLE_TOKEN: string = requireEnv("CIRCLE_TOKEN");
-export const ANTHROPIC_KEY: string = requireEnv("ANTHROPIC_KEY");
-export const SPACE_GROUP_ID: number = (() => {
-  const raw = requireEnv("SPACE_GROUP_ID");
+export function getCircleIntegrationEnv(): {
+  CIRCLE_TOKEN: string;
+  SPACE_GROUP_ID: number;
+} {
+  const CIRCLE_TOKEN = process.env.CIRCLE_TOKEN?.trim();
+  const raw = process.env.SPACE_GROUP_ID?.trim();
+  if (!CIRCLE_TOKEN || !raw) {
+    throw new Error(
+      "Missing CIRCLE_TOKEN or SPACE_GROUP_ID (should only call when hasCircleIntegrationEnv() is true)"
+    );
+  }
   const n = parseInt(raw, 10);
   if (isNaN(n) || n <= 0) {
     throw new Error(`SPACE_GROUP_ID must be a positive integer, got: ${raw}`);
   }
-  return n;
-})();
+  return { CIRCLE_TOKEN, SPACE_GROUP_ID: n };
+}
 
-/**
- * All test resources are prefixed with this string so they can be identified
- * and swept even after an interrupted test run.
- */
-export const TEST_PREFIX = "__test_bv_migrate_";
+export function hasAnthropicExtractEnv(): boolean {
+  return Boolean(process.env.ANTHROPIC_KEY?.trim());
+}
+
+export function getAnthropicExtractKey(): string {
+  const key = process.env.ANTHROPIC_KEY?.trim();
+  if (!key) {
+    throw new Error(
+      "Missing ANTHROPIC_KEY (should only call when hasAnthropicExtractEnv() is true)"
+    );
+  }
+  return key;
+}
