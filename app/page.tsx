@@ -167,6 +167,14 @@ export default function Page() {
           </>
         )}
 
+        {/* Rise ZIP image note — shown after extraction when images are pre-matched */}
+        {seen("review-extraction") && s.uploadMode === "rise-zip" && s.zipImages.length > 0 && (
+          <BobMessage
+            message={`Found ${s.zipImages.length} image${s.zipImages.length !== 1 ? "s" : ""} in the Rise ZIP — no need to upload them separately!`}
+            subtext="Images came directly from the Rise export and are already matched to their placeholders."
+          />
+        )}
+
         {/* Step 5: Review extraction */}
         {seen("review-extraction") && s.courseStructure && (
           <>
