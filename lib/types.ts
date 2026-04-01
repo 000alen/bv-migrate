@@ -1,5 +1,7 @@
 export type ContentType = "module" | "milestone" | "micromodule";
 
+export type UploadMode = "pdf" | "rise-zip";
+
 export interface ImportProgressEvent {
   type: "progress";
   message: string;

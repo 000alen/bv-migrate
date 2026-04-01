@@ -5,6 +5,7 @@ import type { CourseStructure } from "@/lib/schema";
 import { collectBlocks } from "@/lib/utils";
 import type {
   ContentType,
+  UploadMode,
   ImportLog,
   ImportProgressEvent,
   ZipImage,
@@ -42,6 +43,7 @@ export interface AppState {
   contentType: ContentType | null;
   contentNumber: number | null;
 
+  uploadMode: UploadMode;
   pdfFile: File | null;
   pdfFileName: string | null;
   extractionTrigger: number;
@@ -81,9 +83,10 @@ export type Action =
   | { type: "ADVANCE_FROM_GREETING" }
   | { type: "SELECT_CONTENT_TYPE"; contentType: ContentType }
   | { type: "SELECT_NUMBER"; number: number }
+  | { type: "SET_UPLOAD_MODE"; mode: UploadMode }
   | { type: "SET_PDF_FILE"; file: File; fileName: string }
   | { type: "EXTRACTION_STATUS"; message: string }
-  | { type: "EXTRACTION_COMPLETE"; course: CourseStructure }
+  | { type: "EXTRACTION_COMPLETE"; course: CourseStructure; imageData?: Record<number, { filename: string; dataUrl: string }> }
   | { type: "EXTRACTION_ERROR"; error: string }
   | { type: "RETRY_EXTRACTION" }
   | { type: "UPDATE_COURSE"; course: CourseStructure }
@@ -139,6 +142,7 @@ const initial: AppState = {
   spaceGroupId: "",
   contentType: null,
   contentNumber: null,
+  uploadMode: "pdf",
   pdfFile: null,
   pdfFileName: null,
   extractionTrigger: 0,
@@ -187,9 +191,14 @@ function reducer(s: AppState, a: Action): AppState {
       return { ...s, contentType: a.contentType, keyNudge: null, ...visit(s, "number-selection") };
     case "SELECT_NUMBER":
       return { ...s, contentNumber: a.number, ...visit(s, "pdf-upload") };
-    case "SET_PDF_FILE":
+    case "SET_UPLOAD_MODE":
+      return { ...s, uploadMode: a.mode };
+    case "SET_PDF_FILE": {
+      const detectedMode: UploadMode =
+        a.file.name.endsWith(".zip") || a.file.type.includes("zip") ? "rise-zip" : "pdf";
       return {
         ...s,
+        uploadMode: detectedMode,
         pdfFile: a.file,
         pdfFileName: a.fileName,
         extractionTrigger: s.extractionTrigger + 1,
@@ -197,10 +206,32 @@ function reducer(s: AppState, a: Action): AppState {
         extractionStatus: "",
         ...visit(s, "extracting"),
       };
+    }
     case "EXTRACTION_STATUS":
       return { ...s, extractionStatus: a.message };
-    case "EXTRACTION_COMPLETE":
+    case "EXTRACTION_COMPLETE": {
+      // For rise-zip mode: pre-populate imageAssignments from the parsed imageData
+      if (s.uploadMode === "rise-zip" && a.imageData && Object.keys(a.imageData).length > 0) {
+        const zipImages: ZipImage[] = Object.entries(a.imageData).map(([, v]) => ({
+          name: v.filename,
+          dataUrl: v.dataUrl,
+        }));
+        const imageAssignments: Record<number, string> = {};
+        for (const [idxStr, v] of Object.entries(a.imageData)) {
+          imageAssignments[Number(idxStr)] = v.filename;
+        }
+        return {
+          ...s,
+          courseStructure: a.course,
+          extractionError: null,
+          zipImages,
+          imageAssignments,
+          imageMatchingConfirmed: true,
+          ...visit(s, "review-extraction"),
+        };
+      }
       return { ...s, courseStructure: a.course, extractionError: null, ...visit(s, "review-extraction") };
+    }
     case "EXTRACTION_ERROR":
       return { ...s, extractionError: a.error };
     case "RETRY_EXTRACTION":
@@ -209,7 +240,11 @@ function reducer(s: AppState, a: Action): AppState {
       return { ...s, courseStructure: a.course };
     case "CONFIRM_EXTRACTION": {
       const c = s.courseStructure!;
-      const next = hasImages(c) ? "image-upload" : hasGenially(c) ? "genially-links" : "importing";
+      // rise-zip: images already pre-matched, skip image-upload / image-matching steps
+      const skipImageSteps = s.uploadMode === "rise-zip" && s.imageMatchingConfirmed;
+      const next = skipImageSteps
+        ? hasGenially(c) ? "genially-links" : "importing"
+        : hasImages(c) ? "image-upload" : hasGenially(c) ? "genially-links" : "importing";
       return { ...s, reviewConfirmed: true, ...visit(s, next) };
     }
     case "SET_ZIP_IMAGES":

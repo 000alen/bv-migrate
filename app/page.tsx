@@ -59,8 +59,8 @@ export default function Page() {
   const maxN = s.contentType === "module" ? 9 : 4;
   const totalLessons = s.courseStructure?.sections.reduce((n, sec) => n + sec.lessons.length, 0) ?? 0;
 
-  function requireKeys(then: () => void) {
-    if (!s.anthropicKey) {
+  function requireKeys(isRiseZip: boolean, then: () => void) {
+    if (!isRiseZip && !s.anthropicKey) {
       dispatch({ type: "SHOW_KEY_NUDGE", message: "Hold on — you need to set up your API keys first! Click the ⚙️ in the top right." });
       dispatch({ type: "OPEN_SETTINGS" });
       return;
@@ -115,7 +115,7 @@ export default function Page() {
             ) : (
               <ContentTypeStep
                 onSelect={(ct) =>
-                  requireKeys(() => dispatch({ type: "SELECT_CONTENT_TYPE", contentType: ct }))
+                  requireKeys(false, () => dispatch({ type: "SELECT_CONTENT_TYPE", contentType: ct }))
                 }
               />
             )}
@@ -134,18 +134,21 @@ export default function Page() {
           </>
         )}
 
-        {/* Step 3: PDF upload */}
+        {/* Step 3: PDF / ZIP upload */}
         {seen("pdf-upload") && (
           <>
             <BobMessage
-              message={`Awesome! ${ct} ${s.contentNumber} it is. Drop your script PDF here 📄`}
+              message={`Awesome! ${ct} ${s.contentNumber} it is. Drop your script PDF or Rise ZIP here 📄`}
             />
             {s.pdfFileName ? (
-              <UserBubble>📄 {s.pdfFileName}</UserBubble>
+              <UserBubble>{s.uploadMode === "rise-zip" ? "📦" : "📄"} {s.pdfFileName}</UserBubble>
             ) : (
               <PdfUploadStep
-                onFile={(file) =>
-                  requireKeys(() => dispatch({ type: "SET_PDF_FILE", file, fileName: file.name }))
+                onFile={(file, mode) =>
+                  requireKeys(mode === "rise-zip", () => {
+                    dispatch({ type: "SET_UPLOAD_MODE", mode });
+                    dispatch({ type: "SET_PDF_FILE", file, fileName: file.name });
+                  })
                 }
               />
             )}
@@ -155,13 +158,21 @@ export default function Page() {
         {/* Step 4: Extracting */}
         {seen("extracting") && !s.courseStructure && (
           <>
-            <BobMessage message="Let me read through this… 📖" />
+            <BobMessage message={s.uploadMode === "rise-zip" ? "Let me parse this Rise export… 📦" : "Let me read through this… 📖"} />
             <ExtractionStep
               status={s.extractionStatus}
               error={s.extractionError}
               onRetry={() => dispatch({ type: "RETRY_EXTRACTION" })}
             />
           </>
+        )}
+
+        {/* Rise ZIP image note — shown after extraction when images are pre-matched */}
+        {seen("review-extraction") && s.uploadMode === "rise-zip" && s.zipImages.length > 0 && (
+          <BobMessage
+            message={`Found ${s.zipImages.length} image${s.zipImages.length !== 1 ? "s" : ""} in the Rise ZIP — no need to upload them separately!`}
+            subtext="Images came directly from the Rise export and are already matched to their placeholders."
+          />
         )}
 
         {/* Step 5: Review extraction */}
