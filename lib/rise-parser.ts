@@ -133,6 +133,48 @@ function resolveImagePath(
   return null;
 }
 
+/** Decode Rise `deserialize()` / JSONP payload: base64 → UTF-8 JSON with `{ course }`. */
+function decodeCoursePayload(base64: string): RiseCourse {
+  const courseJson = Buffer.from(base64, "base64").toString("utf-8");
+  const rawData = JSON.parse(courseJson) as { course: RiseCourse };
+  return rawData.course;
+}
+
+/**
+ * Older exports embed `deserialize("...")` in index.html.
+ * Newer exports load `locales/<lang>.js` with `__resolveJsonp("course:en","...")`.
+ */
+async function loadRiseCourseJson(
+  zip: JSZip,
+  html: string,
+  baseDir: string
+): Promise<RiseCourse> {
+  const inline = html.match(/deserialize\("([A-Za-z0-9+/=]+)"\)/);
+  if (inline) return decodeCoursePayload(inline[1]);
+
+  const localeMatch = html.match(
+    /window\.i18n\s*=\s*\{[\s\S]*?"default"\s*:\s*"([^"]+)"/
+  );
+  const locale = localeMatch?.[1] ?? "en";
+  const localePath = `${baseDir}locales/${locale}.js`;
+  const localeFile = zip.files[localePath];
+  if (!localeFile) {
+    throw new Error(
+      `No inline deserialize() in index.html and missing ${localePath} — not a supported Rise web export`
+    );
+  }
+  const localeJs = await localeFile.async("string");
+  const jsonp = localeJs.match(
+    /__resolveJsonp\s*\(\s*"course:[^"]*"\s*,\s*"([A-Za-z0-9+/=]+)"\s*\)/
+  );
+  if (!jsonp) {
+    throw new Error(
+      `No __resolveJsonp("course:…") payload in ${localePath} — not a Rise locale bundle`
+    );
+  }
+  return decodeCoursePayload(jsonp[1]);
+}
+
 // ─── Main parser ──────────────────────────────────────────────────────────────
 
 export async function parseRiseExport(zipBuffer: Buffer): Promise<RiseParseResult> {
@@ -158,14 +200,9 @@ export async function parseRiseExport(zipBuffer: Buffer): Promise<RiseParseResul
   }
   if (!indexEntry) throw new Error("No index.html found in ZIP");
 
-  // 3. Extract course JSON from deserialize("BASE64")
+  // 3. Course JSON: inline deserialize("…") or locales/<lang>.js JSONP
   const html = await indexEntry.async("string");
-  const match = html.match(/deserialize\("([A-Za-z0-9+/=]+)"\)/);
-  if (!match) throw new Error("No deserialize() call found in index.html — not a Rise export");
-
-  const courseJson = Buffer.from(match[1], "base64").toString("utf-8");
-  const rawData = JSON.parse(courseJson) as { course: RiseCourse };
-  const riseCourse = rawData.course;
+  const riseCourse = await loadRiseCourseJson(zip, html, baseDir);
 
   // 4. Build a set of all asset paths in the ZIP for fast lookup
   const assetPaths = new Set<string>();

@@ -13,6 +13,7 @@
     "test:sweep": "vitest run --config vitest.config.integration.ts tests/integration/sweep.test.ts",
     "e2e:module2": "tsx scripts/e2e-module2-import.ts",
     "e2e:module2:anthropic": "E2E_LLM=anthropic tsx scripts/e2e-module2-import.ts",
+    "e2e:rise:micro1": "tsx scripts/e2e-rise-micro-module1-import.ts",
     "docs:dev": "cd docs && npm start",
     "docs:build": "cd docs && npm run build"
   },

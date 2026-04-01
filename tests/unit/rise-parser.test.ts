@@ -177,14 +177,12 @@ describe.skipIf(!HAS_FIXTURE)("parseRiseExport (Milestone_1_C3 fixture)", () => 
     }
   });
 
-  it("throws for a non-Rise ZIP (no deserialize call)", async () => {
-    // Create a minimal fake ZIP-like buffer that won't have deserialize()
-    // We'll use an actual valid-looking buffer but with wrong content
+  it("throws for a non-Rise ZIP (no course payload)", async () => {
     const JSZip = await import("jszip");
     const zip = new JSZip.default();
     zip.file("index.html", "<html><body>not a rise export</body></html>");
     const fakeBuf = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
-    await expect(parseRiseExport(fakeBuf)).rejects.toThrow("No deserialize()");
+    await expect(parseRiseExport(fakeBuf)).rejects.toThrow(/not a supported Rise web export/);
   });
 
   it("does not include text blocks with only whitespace", async () => {
